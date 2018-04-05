@@ -6,12 +6,16 @@ it is used to define controllers (see controllers file). The
 SkillSpecification class is inspired by the eTaSL specification files
 where a lua file is used to define a "task context".
 
-Ideas: 1. should constraints of equal priority be automatically
-combined? 2. should we look into sanity checks on rank and such?
-
+Ideas:
+    1. Should constraints of equal priority be automatically
+combined?
+    2. Should we look into sanity checks on rank and such?
+    3. Should we make some sort of support for input_vel_var?
 Todo:
     * Add sanity checks to setters of ###_var's
     * Add sanity checks to setter of constraints
+    * Add support for VelocityEqualityConstraint
+    * Add support for VelocitySetConstraint
 """
 import casadi as cs
 import logging
@@ -31,13 +35,16 @@ class SkillSpecification(object):
     """
     def __init__(self, label, time_var,
                  robot_var,
+                 robot_vel_var=None,
                  virtual_var=None,
+                 virtual_vel_var=None,
                  input_var=None,
                  constraints=[]):
         self.label = label
         self.time_var = time_var
         self.robot_var = robot_var
         self.virtual_var = virtual_var
+        self.virtual_vel_var = virtual_vel_var
         self.input_var = input_var
         self.constraints = constraints
 
@@ -56,6 +63,24 @@ class SkillSpecification(object):
             self.n_robot_var = 0
 
     @property
+    def robot_vel_var(self):
+        """Get or set the robot_vel_var. The robot_vel_var must be the same
+        dimensions as robot_var"""
+        return self._robot_vel_var
+    
+    @robot_vel_var.setter
+    def robot_vel_var(self, var):
+        if var is None:
+            self._robot_vel_var = cs.MX.sym("robot_vel_var", self.n_robot_var)
+        else:
+            if not isinstance(var, cs.MX):
+                raise TypeError("robot_vel_var must be cs.MX.sym.")
+            if var.size() != self.robot_var.size():
+                raise ValueError("robot_var and robot_vel_var must have the"
+                                 + " same dimensions")
+            self._robot_vel_var = var
+
+    @property
     def virtual_var(self):
         """Get or set the virtual_var. Setting the virtual_var also sets
         n_virtual_var."""
@@ -68,6 +93,23 @@ class SkillSpecification(object):
             self.n_virtual_var = var.size()[0]
         else:
             self.n_virtual_var = 0
+
+    @property
+    def virtual_vel_var(self):
+        return self._virtual_vel_var
+
+    @virtual_vel_var.setter
+    def virtual_vel_var(self, var):
+        if var is None:
+            self._virtual_vel_var = cs.MX.sym("virtual_vel_var",
+                                              self.n_virtual_var)
+        else:
+            if not isinstance(var, cs.MX):
+                raise TypeError("virtual_vel_var must be cs.MX.sym.")
+            if var.size() != self.virtual_var.size():
+                raise ValueError("virtual_vel_var and virtual_var must have"
+                                 + " the same dimensions")
+        self._virtual_vel_var = var
 
     @property
     def input_var(self):

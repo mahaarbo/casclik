@@ -3,6 +3,7 @@ Todo:
     * Add list functionality to set.
     * Add @property to the gain, set_min, & set_max that runs _check_sizes
     * Add a "combine" method to vertcat constraints.
+    * Allow SetConstraints to have set_min & set_max that are expressions
 """
 import casadi as cs
 import logging
@@ -63,6 +64,21 @@ class BaseConstraint(object):
                             + " numpy.ndarray, and list of floats/ints.")
         return False
 
+    def jacobian(self, var):
+        """Returns the partial derivative of the expression with respect to
+        var.
+        Return:
+            cs.MX: expression of partial derivative
+        """
+        return cs.jacobian(self.expression, var)
+
+    def jtimes(self, varA, varB):
+        """Returns the partial derivative of the expression with respect to
+        varA, times varB.
+        Return:
+            cs.MX: expression of partial derivative"""
+        return cs.jtimes(self.expression, varA, varB)
+
 
 class EqualityConstraint(BaseConstraint):
     """Equality constraints can be hard or soft, they can have different priorities
@@ -106,6 +122,8 @@ class SetConstraint(BaseConstraint):
         label (str): Name of the constraint
         expression (cs.MX): expression of the constraint
         gain (float,cs.MX,cs.DM,cs.np.ndarray): gain in the constraint
+        set_min (list, cs.MX, cs.DM, cs.np.ndarray): minimum value of set
+        set_max (list, cs.MX, cs.DM, cs.np.ndarray): maximum value of set
         constraint_type (str): "hard" or "soft", for opt.prob. controllers
         priority (int): sorting key of constraint, for pseudoinv. controllers
     """
@@ -181,3 +199,9 @@ class SetConstraint(BaseConstraint):
         return rgain and rmin and rmax
 
 
+class VelocityEqualityConstraint(EqualityConstraint):
+    pass
+
+
+class VelocitySetConstraint(SetConstraint):
+    pass
