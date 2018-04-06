@@ -43,6 +43,7 @@ class SkillSpecification(object):
         self.label = label
         self.time_var = time_var
         self.robot_var = robot_var
+        self.robot_vel_var = robot_vel_var
         self.virtual_var = virtual_var
         self.virtual_vel_var = virtual_vel_var
         self.input_var = input_var
@@ -109,7 +110,7 @@ class SkillSpecification(object):
             if var.size() != self.virtual_var.size():
                 raise ValueError("virtual_vel_var and virtual_var must have"
                                  + " the same dimensions")
-        self._virtual_vel_var = var
+            self._virtual_vel_var = var
 
     @property
     def input_var(self):

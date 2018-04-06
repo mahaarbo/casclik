@@ -11,6 +11,9 @@ with making sure the control values are applied to the system.
 TODO:
     * Make so we can't delete the weights in ReactiveQPController
     * Make it possible to choose H opt.prob. in ReactiveQPController
+    * Add logging in ReactiveQPController when making prob/solv/func
+    * Add compiling of functions in ReactiveQPController
+    * Make virtual var internal to controller
 """
 import casadi as cs
 from skill_specification import SkillSpecification
@@ -42,7 +45,9 @@ class ReactiveQPController(BaseController):
     """
     controller_type = "ReactiveQPController"
     options_info = """TODO
-    solver_opts (dict): solver options, see casadi."""
+    solver_opts (dict): solver options, see casadi.
+    function_opts (dict): problem function options. See below."""
+    weight_shifter = 0.1  # See eTaSL paper, corresponds to mu
 
     def __init__(self, skill_spec,
                  robot_var_weights=None,
@@ -54,15 +59,7 @@ class ReactiveQPController(BaseController):
         self.robot_var_weights = robot_var_weights
         self.virtual_var_weights = virtual_var_weights
         self.slack_var_weights = slack_var_weights
-
-        # Create the expr. for the optimization variable
-        if self.skill_spec.n_slack_var == 0:
-            self.opt_var = cs.vertcat(self.skill_spec.robot_vel_var,
-                                      self.skill_spec.virtual_vel_var)
-        else:
-            self.opt_var = cs.vertcat(self.skill_spec.robot_vel_var,
-                                      self.skill_spec.virtual_vel_var,
-                                      self.skill_spec.slack_var)
+        
         # Options are dicts
         if options is None:
             options = {}
@@ -110,53 +107,52 @@ class ReactiveQPController(BaseController):
     @slack_var_weights.setter
     def slack_var_weights(self, weights):
         if weights is None:
-            weights = [10.]*self.skill_spec.n_slack_var
+            weights = [1000.]*self.skill_spec.n_slack_var
         elif len(weights) != self.skill_spec.n_slack_var:
             raise ValueError("slack_var_weights and slack_var dimensions"
                              + " do not match.")
         self._slack_var_weights = weights
 
     def get_cost_expr(self):
-        cost = 0
-        rob_w = self.robot_var_weights
-        virt_w = self.virtual_var_weights
-        slack_w = self.slack_var_weights
-        rob_v = self.skill_spec.robot_vel_var
-        virt_v = self.skill_spec.virtual_vel_var
-        slack_v = self.skill_spec.slack_var
-        cost += cs.mtimes(cs.mtimes(rob_v.T, cs.diag(rob_w)), rob_v)
-        if virt_v is not None:
-            cost += cs.mtimes(cs.mtimes(virt_v.T, cs.diag(virt_w)), virt_v)
-        if slack_v is not None:
-            cost += cs.mtimes(cs.mtimes(slack_v.T, cs.diag(slack_w)), slack_v)
-        return cost
+        """Returns a casadi expression describing the cost.
 
-    def get_constraint_expr(self):
+        Return:
+             H for min_opt_var opt_var^T*H*opt_var"""
+        nrob = self.skill_spec.n_robot_var
+        nvirt = self.skill_spec.n_virtual_var
+        nslack = self.skill_spec.n_slack_var
+        n_opt_var = nrob + nvirt + nslack
+        H = cs.MX.zeros((n_opt_var, n_opt_var))
+        H[:nrob, :nrob] = self.weight_shifter*cs.diag(self.robot_var_weights)
+        if nvirt > 0:
+            H[nrob:nrob+nvirt, nrob:nrob+nvirt] = self.weight_shifter*cs.diag(self.virtual_var_weights)
+        if nslack > 0:
+            H[-nslack:, -nslack:] = self.weight_shifter*cs.MX.eye(nslack) + cs.diag(self.slack_var_weights)
+        return H
+
+    def get_constraints_expr(self):
         """Returns a casadi expression describing all the constraints, and
         expressions for their upper and lower bounds.
 
         Return:
-            tuple: (A*x, Blb,Bub) for Blb<=A*x<Bub, where A*x, Blb and Bub are
+            tuple: (A, Blb,Bub) for Blb<=A*x<Bub, where A*x, Blb and Bub are
             casadi expressions.
         """
         cnstr_expr_list = []
         lb_cnstr_expr_list = []  # lower bound
         ub_cnstr_expr_list = []  # upper bound
-        slack_v_ind = 0
         time_var = self.skill_spec.time_var
         robot_var = self.skill_spec.robot_var
-        robot_vel_var = self.skill_spec.robot_vel_var
         virtual_var = self.skill_spec.virtual_var
-        virtual_vel_var = self.skill_spec.virtual_vel_var
-        slack_var = self.skill_spec.slack_var
-
+        n_slack = self.skill_spec.n_slack_var
+        slack_ind = 0
         for cnstr in self.skill_spec.constraints:
-            expr_len = cnstr.expression.size()[0]
+            expr_size = cnstr.expression.size()
             # What's A*opt_var?
-            cnstr_expr = cnstr.jtimes(robot_var, robot_vel_var)
+            cnstr_expr = cnstr.jacobian(robot_var)
             if virtual_var is not None:
-                cnstr_expr += cnstr.jtimes(virtual_var, virtual_vel_var)
-            
+                cnstr_expr = cs.horzcat(cnstr_expr,
+                                        cnstr.jacobian(virtual_var))
             # Everyone wants a feedforward
             lb_cnstr_expr = -cnstr.jacobian(time_var)
             ub_cnstr_expr = -cnstr.jacobian(time_var)
@@ -165,12 +161,16 @@ class ReactiveQPController(BaseController):
                 lb_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
                 ub_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
             if isinstance(cnstr, SetConstraint):
-                lb_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.set_min - cnstr.expression)
-                ub_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.set_max - cnstr.expression)
+                ub_cnstr_expr += -cs.mtimes(cnstr.gain,
+                                            cnstr.set_min - cnstr.expression)
+                lb_cnstr_expr += -cs.mtimes(cnstr.gain,
+                                            cnstr.set_max - cnstr.expression)
             # Soft constraints have slack
-            if cnstr.constraint_type == "soft":
-                lb_cnstr_expr += slack_var[slack_v_ind:slack_v_ind+expr_len]
-                ub_cnstr_expr += slack_var[slack_v_ind:slack_v_ind+expr_len]
+            if n_slack > 0:
+                slack_mat = cs.DM.zeros((expr_size[0], n_slack))
+                if cnstr.constraint_type == "soft":
+                    slack_mat[:, slack_ind:slack_ind + expr_size[0]] = -cs.DM.eye(expr_size[0])
+                cnstr_expr = cs.horzcat(cnstr_expr, slack_mat)
             # Add to lists
             cnstr_expr_list += [cnstr_expr]
             lb_cnstr_expr_list += [lb_cnstr_expr]
@@ -180,9 +180,79 @@ class ReactiveQPController(BaseController):
         ub_cnstr_expr_full = cs.vertcat(*ub_cnstr_expr_list)
         return cnstr_expr_full, lb_cnstr_expr_full, ub_cnstr_expr_full
 
+    def setup_solver(self):
+        """Initialize the QP solver.
+
+        This uses the casadi low-level interface for QP problems. It
+        uses the sparsity of the H, A, B_lb and B_ub matrices.
+        """
+        H_expr = self.get_cost_expr()
+        A_expr, Blb_expr, Bub_expr = self.get_constraints_expr()
+        if "solver_opts" not in self.options:
+            self.options["solver_opts"] = {}
+        self.solver = cs.conic("solver",
+                               "qpoases",
+                               {"h": H_expr.sparsity(),
+                                "a": A_expr.sparsity()},
+                               self.options["solver_opts"])
+
+    def setup_problem_functions(self):
+        """Initializes the problem functions.
+
+        With opt_var = v, optimization problem is of the form:
+           min_v   v^T*H*v
+           s.t.: B_lb <= A*v <= B_ub
+        In this function we define the functions that form A, B_lb and B_ub."""
+        H_expr = self.get_cost_expr()
+        A_expr, Blb_expr, Bub_expr = self.get_constraints_expr()
+        time_var = self.skill_spec.time_var
+        robot_var = self.skill_spec.robot_var
+        list_vars = [time_var, robot_var]
+        list_names = ["time_var","robot_var"]
+        virtual_var = self.skill_spec.virtual_var
+        if virtual_var is not None:
+            list_vars += [virtual_var]
+            list_names += ["virtual_var"]
+        input_var = self.skill_spec.input_var
+        if input_var is not None:
+            list_vars += [input_var]
+            list_names += ["input_var"]
+        H_func = cs.Function("H_func", list_vars, [H_expr], list_names, ["H"])
+        A_func = cs.Function("A_func", list_vars, [A_expr], list_names, ["A"])
+        Blb_func = cs.Function("Blb_expr", list_vars, [Blb_expr],
+                               list_names, ["Blb"])
+        Bub_func = cs.Function("Bub_expr", list_vars, [Bub_expr],
+                               list_names, ["Bub"])
+        self.H_func = H_func
+        self.A_func = A_func
+        self.Blb_func = Blb_func
+        self.Bub_func = Bub_func
+
+    def solve(self, time_var,
+              robot_var,
+              virtual_var=None,
+              input_var=None):
+        """Returns the """
+        currvals = [time_var, robot_var]
+        if virtual_var is not None:
+            currvals += [virtual_var]
+        if input_var is not None:
+            currvals += [input_var]
+        H = self.H_func(*currvals)
+        A = self.A_func(*currvals)
+        Blb = self.Blb_func(*currvals)
+        Bub = self.Bub_func(*currvals)
+        res = self.solver(h=H, a=A, lba=Blb, uba=Bub)
+        nrob = self.skill_spec.n_robot_var
+        nvirt = self.skill_spec.n_virtual_var
+        if nvirt > 0:
+            return res["x"][:nrob], res["x"][nrob:nrob+nvirt]
+        else:
+            return res["x"][:nrob]
+
+
 class ReactiveNLPController(BaseController):
     # You can choose cost function
-    # You can choose whether constraints are EULER or RK4
     # You can have robot_vel and virtual_vel constraints
     pass
 
