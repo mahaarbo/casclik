@@ -118,8 +118,19 @@ class EqualityConstraint(BaseConstraint):
 
 
 class SetConstraint(BaseConstraint):
-    """Set constraints can be hard or soft, they can have different priorities
-    but they all try to converge to a set of values.
+    """Set constraints can be hard or soft, they can have different
+    priorities but they all try to converge to a set of values. The
+    gain, set_min, and set_max must not contain the robot_vel_var or
+    virtual_vel_var.
+    
+    Set constraints in the optimization problem are handled as:
+    
+    gain*(set_min - expr) <= dexpr/dt <= gain*(set_max - expr)
+    
+    where we take the total derivative of expression w.r.t. time to
+    get the constraint in terms the optimization variables. See
+    EqualityConstraint.
+
     Args:
         label (str): Name of the constraint
         expression (cs.MX): expression of the constraint
@@ -128,6 +139,7 @@ class SetConstraint(BaseConstraint):
         set_max (list, cs.MX, cs.DM, cs.np.ndarray): maximum value of set
         constraint_type (str): "hard" or "soft", for opt.prob. controllers
         priority (int): sorting key of constraint, for pseudoinv. controllers
+
     """
     constraint_class = "SetConstraint"
 
@@ -135,7 +147,7 @@ class SetConstraint(BaseConstraint):
                  expression,
                  gain=1.0,
                  set_min=0.0,
-                 set_max=1.0,
+                 set_max=1e10,
                  constraint_type="hard",
                  priority=1):
         BaseConstraint.__init__(self, label,
@@ -191,7 +203,7 @@ class SetConstraint(BaseConstraint):
             sza = self.set_max.size()
             if sza[0] == expr_size[0] and sza[1] == 1:
                 rmax = True
-        elif isinstance(self.set_maz, cs.np.ndarray):
+        elif isinstance(self.set_max, cs.np.ndarray):
             sza = self.set_max.shape
             if sza[0] == expr_size[0] and szi == 1:
                 rmax = True
