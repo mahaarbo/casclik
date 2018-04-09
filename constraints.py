@@ -81,17 +81,19 @@ class BaseConstraint(object):
 
 
 class EqualityConstraint(BaseConstraint):
-    """Equality constraints can be hard or soft, they can have different priorities
-    but they all try to converge to zero.
+    """Equality constraints can be hard or soft, they can have different
+    priorities but they all try to converge to zero. Gain can be an
+    expression but must not contain robot_vel_var, or virtual_vel_var.
 
     Equality constraints in the optimization solver is of the form:
 
-    A1*robot_var + A2*virtual_var = B
+    dexpr/drob*rob_vel + dexpr/dvirt*virt_vel = -gain*expr - dexpr/dt
 
-    where A1 and A2 are the partial derivatives of the constraint
-    w.r.t. the robot_var and virtual_var. B is the partial derivative
-    of the constraint w.r.t time_var and the gain times the
-    expression.
+    where we have the partial derivatives of the expression w.r.t. the
+    robot_var and virtual_var. Using gain times expression gives us
+    exponential stability if gain is a constant >0, and the partial
+    derivative of the constraint expression w.r.t time_var is used as
+    a feedforward.
 
     Args:
         label (str): Name of the constraint
