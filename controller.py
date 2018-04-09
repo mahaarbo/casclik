@@ -3,17 +3,21 @@
 This module contains the controller classes that can be constructed
 from the skill specification. Some would call this the solver, as it
 solves the contraint problem formulated by the skill specification but
-we've called it the controller as it chooses the derivatives of
-robot_var and virtual_var to 'converge' to the desired values. And
-what is a controller if not exactly that? The user is still tasked
-with making sure the control values are applied to the system.
+I've called it the controller as it chooses robot_vel_var and
+virtual_vel_var to 'converge' to the desired values. And what is a
+controller if not that? The user is still tasked with making sure the
+control values are applied to the system in an orderly fashion of
+course.
 
 TODO:
     * Make so we can't delete the weights in ReactiveQPController
-    * Make it possible to choose H opt.prob. in ReactiveQPController
-    * Add logging in ReactiveQPController when making prob/solv/func
-    * Add compiling of functions in ReactiveQPController
-    * Make virtual var internal to controller
+    * Add logging in controllers when making prob/solv/func
+    * Add compiling of problem_functions for faster evaluation of big ones
+    * Make virtual var internal to controllers
+    * Add sanity check on ReactiveNLPController:cost_expression.setter
+    * Add VelocityEqualityConstraint and VelocitySetConstraint support
+    * Add inital loop-closure solving. (Getting initial virtual_var/slack).
+    * Add warmstart option to ReactiveNLPController
 """
 import casadi as cs
 from skill_specification import SkillSpecification
@@ -32,22 +36,34 @@ class ReactiveQPController(BaseController):
     """Reactive QP controller.
 
     The reactive QP controller can handle skills with input. It
-    defines a QP problem from the skill specification. As it is a
-    reactive controller resolved to the speeds of robot_var, it can
-    handle inputs such as force sensors with a dampening effect.
+    defines a quadratic problem with constraints from the skill
+    specification. As it is a reactive controller resolved to the
+    speeds of robot_var, it can handle inputs such as force sensors
+    with a dampening effect.
+
+    Given that v = [robot_vel_var, virtual_vel_var], this is
+        min_v v^T H v
+        s.t.: constraints
+    where H is the cost expression. The cost expression is a diagonal
+    matrix where the entries on the diagonal (the weights) must be
+    either floats or casadi expressions defined by robot_var,
+    virtual_var, or input_var. We're following the eTaSL approach, and
+    have a "weight_shifter", or regularization constant in the cost. It
+    is to shift the weight between v and the slack variables.
 
     Args:
         skill_spec (SkillSpecification): skill specification
-        robot_var_weights (list,numpy.ndarray): weights in QP
-        virtual_var_weights (list, numpy.ndarray): weights in QP
-        slack_var_weights (list, numpy.ndarray): weights in QP
+        robot_var_weights (list): weights in QP, can be floats, or MX syms
+        virtual_var_weights (list): weights in QP, can be floats, or MX syms
+        slack_var_weights (list): weights in QP, can be floats or MX syms
         options (dict): options dictionary, see self.options_info
+
     """
     controller_type = "ReactiveQPController"
     options_info = """TODO
     solver_opts (dict): solver options, see casadi.
     function_opts (dict): problem function options. See below."""
-    weight_shifter = 0.1  # See eTaSL paper, corresponds to mu
+    weight_shifter = 0.001  # See eTaSL paper, corresponds to mu
 
     def __init__(self, skill_spec,
                  robot_var_weights=None,
@@ -59,7 +75,7 @@ class ReactiveQPController(BaseController):
         self.robot_var_weights = robot_var_weights
         self.virtual_var_weights = virtual_var_weights
         self.slack_var_weights = slack_var_weights
-        
+
         # Options are dicts
         if options is None:
             options = {}
@@ -106,8 +122,12 @@ class ReactiveQPController(BaseController):
 
     @slack_var_weights.setter
     def slack_var_weights(self, weights):
+        ns = self.skill_spec.n_slack_var
         if weights is None:
-            weights = [1000.]*self.skill_spec.n_slack_var
+            weights = [1.]*ns
+        elif isinstance(weights, cs.MX) and weights.size()[0] != ns:
+            raise ValueError("slack_var_weights and slack_var dimensions"
+                             + " do not match.")
         elif len(weights) != self.skill_spec.n_slack_var:
             raise ValueError("slack_var_weights and slack_var dimensions"
                              + " do not match.")
@@ -161,15 +181,16 @@ class ReactiveQPController(BaseController):
                 lb_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
                 ub_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
             if isinstance(cnstr, SetConstraint):
-                ub_cnstr_expr += -cs.mtimes(cnstr.gain,
-                                            cnstr.set_min - cnstr.expression)
-                lb_cnstr_expr += -cs.mtimes(cnstr.gain,
-                                            cnstr.set_max - cnstr.expression)
+                ub_cnstr_expr += cs.mtimes(cnstr.gain,
+                                           cnstr.set_max - cnstr.expression)
+                lb_cnstr_expr += cs.mtimes(cnstr.gain,
+                                           cnstr.set_min - cnstr.expression)
             # Soft constraints have slack
             if n_slack > 0:
                 slack_mat = cs.DM.zeros((expr_size[0], n_slack))
                 if cnstr.constraint_type == "soft":
                     slack_mat[:, slack_ind:slack_ind + expr_size[0]] = -cs.DM.eye(expr_size[0])
+                    slack_ind += expr_size[0]
                 cnstr_expr = cs.horzcat(cnstr_expr, slack_mat)
             # Add to lists
             cnstr_expr_list += [cnstr_expr]
@@ -208,7 +229,7 @@ class ReactiveQPController(BaseController):
         time_var = self.skill_spec.time_var
         robot_var = self.skill_spec.robot_var
         list_vars = [time_var, robot_var]
-        list_names = ["time_var","robot_var"]
+        list_names = ["time_var", "robot_var"]
         virtual_var = self.skill_spec.virtual_var
         if virtual_var is not None:
             list_vars += [virtual_var]
