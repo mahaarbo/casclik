@@ -214,6 +214,7 @@ class SetConstraint(BaseConstraint):
 
 
 class VelocityEqualityConstraint(EqualityConstraint):
+    """Constraint on the constraint velocity. """
     pass
 
 
