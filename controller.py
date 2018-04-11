@@ -565,3 +565,57 @@ class PseudoInverseController(BaseController):
         cnstr_count = spec.count_constraints()
         self.n_modes = 2**cnstr_count["set"]
         self._skill_spec = spec
+
+    def get_in_tangent_cone_function(self, cnstr):
+        """Returns a casadi function for the SetConstraint instance."""
+        if not isinstance(cnstr, SetConstraint):
+            raise TypeError("in_tangent_cone is only available for"
+                            + " SetConstraint")
+            return None
+        time_var = self.skill_spec.time_var
+        robot_var = self.skill_spec.time_var
+        list_vars = [time_var, robot_var]
+        list_names = ["time_var", "robot_var"]
+        robot_vel_var = self.skill_spec.robot_vel_var
+        opt_var = [robot_vel_var]
+        virtual_var = self.skill_spec.virtual_var
+        virtual_vel_var = self.skill_spec.virtual_vel_var
+        input_var = self.skill_spec.input_var
+        expr = cnstr.expression
+        set_min = cnstr.set_min
+        set_max = cnstr.set_max
+        dexpr = cs.jacobian(expr, time_var)
+        dexpr += cs.jtimes(expr, robot_var, robot_vel_var)
+        if virtual_var is not None:
+            list_vars += [virtual_var]
+            list_names += ["virtual_var"]
+            opt_var += [virtual_vel_var]
+            dexpr += cs.jtimes(expr, virtual_var, virtual_vel_var)
+        if input_var is not None:
+            list_vars += [input_var]
+            list_vars += ["input_var"]
+        in_tc = cs.if_else(
+            set_min < expr,
+            cs.if_else(
+                expr < set_max,
+                True,
+                cs.if_else(
+                    dexpr < 0,
+                    True,
+                    False,
+                    True),
+                False,
+                True),
+            cs.if_else(
+                dexpr > 0,
+                True,
+                False,
+                True
+            ),
+            True
+        )
+        return cs.Function("in_tc_"+cnstr.label,
+                           list_vars+opt_var,
+                           [in_tc],
+                           list_vars+["opt_var"],
+                           ["in_tc_"+cnstr.label])
