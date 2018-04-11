@@ -18,6 +18,7 @@ TODO:
     * Add VelocityEqualityConstraint and VelocitySetConstraint support
     * Add inital loop-closure solving. (Getting initial virtual_var/slack).
     * Add warmstart option to ReactiveNLPController
+    * Fix default options of ReactiveQPController
 """
 import casadi as cs
 from skill_specification import SkillSpecification
@@ -253,7 +254,6 @@ class ReactiveQPController(BaseController):
               robot_var,
               virtual_var=None,
               input_var=None):
-        """Returns the """
         currvals = [time_var, robot_var]
         if virtual_var is not None:
             currvals += [virtual_var]
@@ -367,6 +367,17 @@ class ReactiveNLPController(BaseController):
         self._n_opt_var = n_opt_var
         self._skill_spec = spec
 
+    def get_regularised_cost_expr(self):
+        slack_var = self.skill_spec.slack_var
+        if slack_var is not None:
+            nslack = self.skill_spec.n_slack_var
+            slack_H = cs.diag(self.slack_var_weights)
+            slack_H += self.weight_shifter*cs.MX.eye(nslack)
+            slack_cost = cs.mtimes(cs.mtimes(slack_var.T, slack_H), slack_var)
+        else:
+            slack_cost = 0.0
+        return self.weight_shifter*self.cost_expression + slack_cost
+
     def get_constraints_expr(self):
         cnstr_expr_list = []
         lb_cnstr_expr_list = []  # lower bound
@@ -402,7 +413,7 @@ class ReactiveNLPController(BaseController):
             # Soft constraints have slack
             if n_slack > 0:
                 if cnstr.constraint_type == "soft":
-                    cnstr_expr += -slack_var[slack_ind]
+                    cnstr_expr += -slack_var[slack_ind:slack_ind+expr_size[0]]
                     slack_ind += expr_size[0]
             # Add to lists
             cnstr_expr_list += [cnstr_expr]
@@ -414,14 +425,7 @@ class ReactiveNLPController(BaseController):
         return cnstr_expr_full, lb_cnstr_expr_full, ub_cnstr_expr_full
 
     def setup_solver(self):
-        # We do the same regularisation thing here..
-        # But should we? Is it necessary?
-        slack_var = self.skill_spec.slack_var
-        n_slack_var = self.skill_spec.n_slack_var
-        slack_H = cs.diag(self.slack_var_weights)
-        slack_H += self.weight_shifter*cs.MX.eye(n_slack_var)
-        slack_cost = cs.mtimes(cs.mtimes(slack_var.T, slack_H), slack_var)
-        full_cost_expr = self.weight_shifter*self.cost_expression + slack_cost
+        full_cost_expr = self.get_regularised_cost_expr()
         cnstr_expr, lb_cnstr_expr, ub_cnstr_expr = self.get_constraints_expr()
         # Define externals
         time_var = self.skill_spec.time_var
@@ -446,7 +450,7 @@ class ReactiveNLPController(BaseController):
                                 self.options["solver_opts"])
 
     def setup_problem_functions(self):
-        cost_expr = self.cost_expression
+        full_cost_expr = self.get_regularised_cost_expr()
         cnstr_expr, lb_cnstr_expr, ub_cnstr_expr = self.get_constraints_expr()
         # Define external inputs
         time_var = self.skill_spec.time_var
@@ -462,10 +466,12 @@ class ReactiveNLPController(BaseController):
             list_vars += [input_var]
             list_names += ["input_var"]
         # Cost and cnstr have opt_var in them
-        cost_func = cs.Function("cost", list_vars+[self._opt_var], [cost_expr],
-                                list_names+["opt_var"], ["cost"])
+        cost_func = cs.Function("cost", list_vars+[self._opt_var],
+                                [full_cost_expr], list_names+["opt_var"],
+                                ["cost"])
         cnstr_func = cs.Function("cnstr", list_vars+[self._opt_var],
-                                 [cnstr_expr], list_names+["opt_var"], ["cnstr"])
+                                 [cnstr_expr], list_names+["opt_var"],
+                                 ["cnstr"])
         # lb and ub are for numerics
         lb_cnstr_func = cs.Function("lb_cnstr", list_vars, [lb_cnstr_expr],
                                     list_names, ["lb_cnstr"])
