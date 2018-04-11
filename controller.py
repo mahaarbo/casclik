@@ -550,3 +550,18 @@ class PseudoInverseController(BaseController):
 
     def __init__(self, skill_spec, options):
         self.skill_spec = skill_spec
+        if options is None:
+            options = {}
+        self.options = options
+
+    @property
+    def skill_spec(self):
+        """Get or set the skill specification. This also sets the number of
+         modes."""
+        return self._skill_spec
+
+    @skill_spec.setter
+    def skill_spec(self, spec):
+        cnstr_count = spec.count_constraints()
+        self.n_modes = 2**cnstr_count["set"]
+        self._skill_spec = spec
