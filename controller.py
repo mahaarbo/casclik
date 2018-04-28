@@ -536,6 +536,189 @@ class ModelPredictiveController(BaseController):
         self.skill_spec = skill_spec
 
 
+class EqualityPseudoInverseController(BaseController):
+    """Pseudo inverse controller for equality constraints.
+
+    The pseudo inverse controller is based on Antonelli and others
+    before him on closed loop inverse kinematics for calculating the
+    desired joint speeds for equality constraints.
+
+    Args:
+        skill_spec (SkillSpecification): skill specification
+        options (dict): options dictionary, see self.options_info
+    """
+    controller_type = "EqualityPseudoInverseController"
+    options_info = """TODO
+    feedforward (bool): whether the Jt is included"""
+
+    def __init__(self, skill_spec,
+                 options=None):
+        self.skill_spec = skill_spec
+        if options is None:
+            options = {}
+        if "feedforward" not in options:
+            options["feedforward"] = True
+        self.options = options
+
+    @property
+    def skill_spec(self):
+        """Get or set the skill specification."""
+        return self._skill_spec
+
+    @skill_spec.setter
+    def skill_spec(self, spec):
+        cnstr_count = spec.count_constraints()
+        if cnstr_count["equality"] != cnstr_count["all"]:
+            raise TypeError("EqualityPseudoInverseController can only handle"
+                            + " skills with ONLY equality constraints.")
+        state_var = [spec.robot_var]
+        n_state_var = spec.n_robot_var
+        cntrl_var = [spec.robot_vel_var]
+        if spec.virtual_var is not None:
+            state_var += [spec.virtual_var]
+            n_state_var += spec.n_virtual_var
+            cntrl_var += [spec.virtual_vel_var]
+        self.state_var = cs.vertcat(*state_var)
+        self.cntrl_var = cntrl_var
+        self.n_state_var = n_state_var
+        self._skill_spec = spec
+
+    def get_problem_expressions(self):
+        """Initializes the constraint derivatives, Jacobians and
+        null-space functions.
+
+        With opt_var = v, the desired dv is
+            dv = pinv(J0)*dconstr0 + N00*pinv(J1)*dconstr1 + N01*pinv(J2)*...
+        where Ji = dconstr/dv, J0i.T = [J0.T, J1.T, ... , Ji.T],
+        N1i = I - pinv(J0i)*J0i and dconstri = -Ki*constri - Jti, Jti=dconstr/dt
+        And those are the expressions we're constructing
+        """
+        time_var = self.skill_spec.time_var
+        state_var = self.state_var
+        n_state_var = self.n_state_var
+        n_robot_var = self.skill_spec.n_robot_var
+        J_expr_list = []
+        Jt_expr_list = []
+        J0i_expr_list = []
+        N0i_expr_list = []
+        des_dconstr_expr_list = []
+        for cnstr in self.skill_spec.constraints:
+            Ji = cnstr.jacobian(state_var)
+            Jti = cnstr.jacobian(time_var)
+            J_expr_list += [Ji]
+            Jt_expr_list += [Jti]
+            J0i = cs.vertcat(*J_expr_list)
+            J0i_expr_list += [J0i]
+            N0i = cs.MX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
+            N0i_expr_list += [N0i]
+            des_dconstri = -cs.mtimes(cnstr.gain, cnstr.expression)
+            if self.options["feedforward"]:
+                des_dconstri += - Jti
+            des_dconstr_expr_list += [des_dconstri]
+        return (J_expr_list,
+                Jt_expr_list,
+                J0i_expr_list,
+                N0i_expr_list,
+                des_dconstr_expr_list)
+
+    def setup_problem_functions(self):
+        """setup problem functions. Separate from get_problem_expressions for
+        future compilation of functions for speed-up."""
+        all_expr_lists = self.get_problem_expressions()
+        J_expr_list = all_expr_lists[0]
+        Jt_expr_list = all_expr_lists[1]
+        J0i_expr_list = all_expr_lists[2]
+        N0i_expr_list = all_expr_lists[3]
+        dconstr_expr_list = all_expr_lists[4]
+        time_var = self.skill_spec.time_var
+        robot_var = self.skill_spec.robot_var
+        list_vars = [time_var, robot_var]
+        list_names = ["time_var", "robot_var"]
+        virtual_var = self.skill_spec.virtual_var
+        if virtual_var is not None:
+            list_vars += [virtual_var]
+            list_names += ["virtual_var"]
+        input_var = self.skill_spec.input_var
+        if input_var is not None:
+            list_vars += [input_var]
+            list_names += ["input_var"]
+        J_func_list = []
+        Jt_func_list = []
+        J0i_func_list = []
+        N0i_func_list = []
+        dconstr_func_list = []
+        for i in xrange(len(J_expr_list)):
+            J_func = cs.Function("J"+str(i), list_vars, [J_expr_list[i]],
+                                 list_names, ["J"+str(i)])
+            J_func_list += [J_func]
+            Jt_func = cs.Function("Jt"+str(i), list_vars, [Jt_expr_list[i]],
+                                  list_names, ["Jt"+str(i)])
+            Jt_func_list += [Jt_func]
+            J0i_func = cs.Function("J0"+str(i), list_vars, [J0i_expr_list[i]],
+                                   list_names, ["J0"+str(i)])
+            J0i_func_list += [J0i_func]
+            dconstr_func = cs.Function("dcnstr"+str(i), list_vars,
+                                       [dconstr_expr_list[i]],
+                                       list_names, ["dconstr"+str(i)])
+            dconstr_func_list += [dconstr_func]
+            N0i_func = cs.Function("N0"+str(i), list_vars, [N0i_expr_list[i]],
+                                   list_names, ["N0"+str(i)])
+            N0i_func_list += [N0i_func]
+        self.J_func_list = J_func_list
+        self.Jt_func_list = Jt_func_list
+        self.J0i_func_list = J0i_func_list
+        self.dconstr_func_list = dconstr_func_list
+        self.N0i_func_list = N0i_func_list
+
+    def setup_solver(self):
+        """Initialize the function that returns the desired joint speed."""
+        # Setup variables
+        time_var = self.skill_spec.time_var
+        robot_var = self.skill_spec.robot_var
+        list_vars = [time_var, robot_var]
+        list_names = ["time_var", "robot_var"]
+        virtual_var = self.skill_spec.virtual_var
+        if virtual_var is not None:
+            list_vars += [virtual_var]
+            list_names += ["virtual_var"]
+        input_var = self.skill_spec.input_var
+        if input_var is not None:
+            list_vars += [input_var]
+            list_names += ["input_var"]
+        # Get all the problem expressions
+        all_expr_lists = self.get_problem_expressions()
+        J_expr_list = all_expr_lists[0]
+        N0i_expr_list = all_expr_lists[3]
+        dconstr_expr_list = all_expr_lists[4]
+        # Initialize the expression of proper size
+        n_state_var = self.n_state_var
+        cntrl_var_des_expr = cs.MX.zeros(n_state_var)
+        for i in xrange(len(J_expr_list)):
+            Ji = J_expr_list[i]
+            dconstri = dconstr_expr_list[i]
+            if i == 0:
+                cntrl_var_des_expr += cs.mtimes(cs.pinv(Ji), dconstri)
+            else:
+                N0i = N0i_expr_list[i-1]
+                cntrl_var_des_expr += cs.mtimes(N0i,
+                                                cs.mtimes(cs.pinv(Ji),
+                                                          dconstri))
+        self.solver = cs.Function("fcntrl_var_des", list_vars,
+                                  [cntrl_var_des_expr],
+                                  list_names, ["cntr_var_des"])
+
+    def solve(self, time_var,
+              robot_var,
+              virtual_var=None,
+              input_var=None):
+        currvals = [time_var, robot_var]
+        if virtual_var is not None:
+            currvals += [virtual_var]
+        if input_var is not None:
+            currvals += [input_var]
+        return self.solver(*currvals)
+
+
 class PseudoInverseController(BaseController):
     """Pseudo Inverse controller.
 
@@ -552,9 +735,10 @@ class PseudoInverseController(BaseController):
         options (dict): options dictionary, see self.options_info
     """
     controller_type = "PseudoInverseController"
-    options_description = """TODO"""
+    options_info = """TODO"""
 
-    def __init__(self, skill_spec, options):
+    def __init__(self, skill_spec,
+                 options=None):
         self.skill_spec = skill_spec
         if options is None:
             options = {}
@@ -579,7 +763,7 @@ class PseudoInverseController(BaseController):
                             + " SetConstraint")
             return None
         time_var = self.skill_spec.time_var
-        robot_var = self.skill_spec.time_var
+        robot_var = self.skill_spec.robot_var
         list_vars = [time_var, robot_var]
         list_names = ["time_var", "robot_var"]
         robot_vel_var = self.skill_spec.robot_vel_var
@@ -600,28 +784,32 @@ class PseudoInverseController(BaseController):
         if input_var is not None:
             list_vars += [input_var]
             list_vars += ["input_var"]
+        if_low_inc = cs.if_else(
+            dexpr > 0,
+            True,
+            False,
+            True
+        )
+        if_high_dec = cs.if_else(
+            dexpr < 0,
+            True,
+            False,
+            True
+        )
+        leq_high = cs.if_else(
+            expr <= set_max,
+            True,
+            if_high_dec,
+            True
+        )
         in_tc = cs.if_else(
-            set_min < expr,
-            cs.if_else(
-                expr < set_max,
-                True,
-                cs.if_else(
-                    dexpr < 0,
-                    True,
-                    False,
-                    True),
-                False,
-                True),
-            cs.if_else(
-                dexpr > 0,
-                True,
-                False,
-                True
-            ),
+            set_min <= expr,
+            leq_high,
+            if_low_inc,
             True
         )
         return cs.Function("in_tc_"+cnstr.label,
                            list_vars+opt_var,
                            [in_tc],
-                           list_vars+["opt_var"],
+                           list_names+["opt_var"],
                            ["in_tc_"+cnstr.label])
