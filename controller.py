@@ -45,12 +45,15 @@ class ReactiveQPController(BaseController):
     Given that v = [robot_vel_var, virtual_vel_var], this is
         min_v v^T H v
         s.t.: constraints
+
     where H is the cost expression. The cost expression is a diagonal
     matrix where the entries on the diagonal (the weights) must be
     either floats or casadi expressions defined by robot_var,
     virtual_var, or input_var. We're following the eTaSL approach, and
-    have a "weight_shifter", or regularization constant in the cost. It
-    is to shift the weight between v and the slack variables.
+    have a "weight_shifter", or regularization constant in the
+    cost. It is to shift the weight between v and the slack
+    variables. If you want a more complex cost, you can overload the
+    H_func with ANY function that relies on the current values.
 
     Args:
         skill_spec (SkillSpecification): skill specification
@@ -280,15 +283,18 @@ class ReactiveNLPController(BaseController):
     specification. The robot_var, virtual_var, and input_var in the
     expressions are handled as parameters to the solver. The
     constraints are constructed from the skill_specification similarly
-    as it is in the ReactiveQPController. The main usage for
+    as it is in the ReactiveQPController. The main usage for this
     controller is when you have a nonlinear cost function you want to
-    employ.
+    employ. As with the ReactiveQPController, you can overload your
+    own functions for the cost if you have it in casadi compatible
+    external format.
 
     Args:
         skill_spec (SkillSpecification): skill specification
         cost_expr (cs.MX): expression of the cost function
         slack_var_weights (list): weights in QP, defaults to 1.
         options (dict): options dictionary, see self.options_info
+
     """
     controller_type = "ReactiveNLPController"
     options_info = """TODO
