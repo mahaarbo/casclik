@@ -8,7 +8,6 @@ Todo:
 import casadi as cs
 import logging
 
-
 class BaseConstraint(object):
     """Base constraint object
     Args:
