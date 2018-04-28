@@ -79,6 +79,11 @@ class BaseConstraint(object):
             cs.MX: expression of partial derivative"""
         return cs.jtimes(self.expression, varA, varB)
 
+    def nullspace(self, var):
+        """Returns I-pinv(J)*J where J is dexpression/dvar."""
+        J = self.jacobian(var)
+        return cs.MX.eye(var.size()[0]) - cs.mtimes(cs.pinv(J), J)
+        
 
 class EqualityConstraint(BaseConstraint):
     """Equality constraints can be hard or soft, they can have different
@@ -123,13 +128,26 @@ class SetConstraint(BaseConstraint):
     gain, set_min, and set_max must not contain the robot_vel_var or
     virtual_vel_var.
     
-    Set constraints in the optimization problem are handled as:
+    Set constraints in the optimization problems are handled as:
     
     gain*(set_min - expr) <= dexpr/dt <= gain*(set_max - expr)
     
     where we take the total derivative of expression w.r.t. time to
     get the constraint in terms the optimization variables. See
     EqualityConstraint.
+
+    In the pseudoinverse controllers it is handled differently
+    depending on the priority. Generally they have an in_tangent_cone
+    function that works as follows:
+    
+    if  set_min < expression < set_max:
+        return True
+    elif expression <= set_min and dexpression/dt > 0:
+        return True
+    elif expression >= set_max and dexpression/dt < 0:
+        return True
+    else:
+        return False
 
     Args:
         label (str): Name of the constraint
@@ -146,7 +164,7 @@ class SetConstraint(BaseConstraint):
     def __init__(self, label,
                  expression,
                  gain=1.0,
-                 set_min=0.0,
+                 set_min=-1e10,
                  set_max=1e10,
                  constraint_type="hard",
                  priority=1):
