@@ -79,10 +79,6 @@ class ReactiveQPController(BaseController):
         self.robot_var_weights = robot_var_weights
         self.virtual_var_weights = virtual_var_weights
         self.slack_var_weights = slack_var_weights
-
-        # Options are dicts
-        if options is None:
-            options = {}
         self.options = options
 
     @property
@@ -136,6 +132,36 @@ class ReactiveQPController(BaseController):
             raise ValueError("slack_var_weights and slack_var dimensions"
                              + " do not match.")
         self._slack_var_weights = weights
+
+    @property
+    def options(self):
+        """Get or set the options. See ReactiveQPController.options_info for
+        more information."""
+        return self._options
+
+    @options.setter
+    def options(self, opt):
+        if opt is None or not isinstance(opt, dict):
+            opt = {}
+        if "solver_name" not in opt:
+            opt["solver_name"] = "qpoases"
+        if "solver_opts" not in opt:
+            opt["solver_opts"] = {}
+        solver_opts = opt["solver_opts"]
+        if "print_time" not in solver_opts:
+            solver_opts["print_time"] = False
+        if opt["solver_name"] == "qpoases":
+            if "printLevel" not in solver_opts:
+                solver_opts["printLevel"] = "none"
+        elif opt["solver_name"] == "ooqp":
+            if "print_level" not in solver_opts:
+                solver_opts["print_level"] = 0
+        if "jit" not in solver_opts:
+            solver_opts["jit"] = True
+        if "jit_options" not in solver_opts:
+            solver_opts["jit_options"] = {"compiler": "shell",
+                                          "flags": "-O2"}
+        self._options = opt
 
     def get_cost_expr(self):
         """Returns a casadi expression describing the cost.
@@ -310,21 +336,6 @@ class ReactiveNLPController(BaseController):
         self.skill_spec = skill_spec
         self.slack_var_weights = slack_var_weights
         self.cost_expression = cost_expr
-        # Fix default options
-        if options is None:
-            options = {}
-        if "solver_name" not in options:
-            options["solver_name"] = "ipopt"
-        if "solver_opts" not in options:
-            options["solver_opts"] = {}
-        solver_opts = options["solver_opts"]
-        if "print_time" not in solver_opts:
-            solver_opts["print_time"] = False
-        if options["solver_name"] == "ipopt" and "ipopt" not in solver_opts:
-            solver_opts["ipopt"] = {}
-        if "print_level" not in solver_opts["ipopt"]:
-            solver_opts["ipopt"] = {"print_level": 0}
-            
         self.options = options
 
     @property
@@ -372,6 +383,63 @@ class ReactiveNLPController(BaseController):
         self._opt_var = cs.vertcat(*list_opt_var)
         self._n_opt_var = n_opt_var
         self._skill_spec = spec
+
+    @property
+    def options(self):
+        """Get or set the options. See ReactiveNLPController.options_info.  Or
+        read @options.setter in source code. Basically we stop solvers
+        from printing, and allow SQP methods to warmstart.
+
+        """
+        return self._options
+
+    @options.setter
+    def options(self, opt):
+        if opt is None:
+            opt = {}
+        if "solver_name" not in opt:
+            opt["solver_name"] = "ipopt"
+        if "solver_opts" not in opt:
+            opt["solver_opts"] = {}
+
+        solver_opts = opt["solver_opts"]
+        if "print_time" not in solver_opts:
+            solver_opts["print_time"] = False
+
+        if opt["solver_name"] == "blocksqp":
+            if "print_header" not in solver_opts:
+                solver_opts["print_header"] = False
+            if "print_iteration" not in solver_opts:
+                solver_opts["print_iteration"] = False
+            if "warmstart" not in solver_opts:
+                solver_opts["warmstart"] = False
+            if "qpsol" not in solver_opts:
+                solver_opts["qpsol"] = "qpoases"
+            if "qpsol_options" not in solver_opts:
+                solver_opts["qpsol_options"] = {"printLevel": "none"}
+
+        if opt["solver_name"] == "ipopt":
+            if "ipopt" not in solver_opts:
+                solver_opts["ipopt"] = {}
+                # ipopt options are a bit weird
+                # see documentation on nlpsol
+            if "print_level" not in solver_opts["ipopt"]:
+                solver_opts["ipopt"]["print_level"] = 0
+
+        if opt["solver_name"] == "scpgen":
+            if "print_header" not in solver_opts:
+                solver_opts["print_header"] = False
+
+        if opt["solver_name"] == "sqpmethod":
+            if "print_header" not in solver_opts:
+                solver_opts["print_header"] = False
+            if "print_iteration" not in solver_opts:
+                solver_opts["print_iteration"] = False
+            if "qpsol" not in solver_opts:
+                solver_opts["qpsol"] = "qpoases"
+            if "qpsol_options" not in solver_opts:
+                solver_opts["qpsol_options"] = {"printLevel": "none"}
+        self._options = opt
 
     def get_regularised_cost_expr(self):
         slack_var = self.skill_spec.slack_var
@@ -583,6 +651,33 @@ class EqualityPseudoInverseController(BaseController):
         self.n_state_var = n_state_var
         self._skill_spec = spec
 
+    @property
+    def options(self):
+        """Get or set the options, See
+        EqualityPseudoInverseController.options_info.
+
+        """
+        return self._options
+
+    @options.setter
+    def options(self, opt):
+        if opt is None:
+            opt = {}
+        if "feedforward" not in opt:
+            opt["feedforward"] = True
+        if "function_opts" not in opt:
+            opt["function_opts"] = {}
+        function_opts = opt["function_opts"]
+        if "jit" not in function_opts:
+            function_opts["jit"] = True
+        if "compiler" not in function_opts:
+            function_opts["compiler"] = "shell"
+        if "print_time" not in function_opts:
+            function_opts["print_time"] = False
+        if "jit_options" not in function_opts:
+            function_opts["jit_options"] = {"flags":"-O2"}
+        self._options = opt
+        
     def get_problem_expressions(self):
         """Initializes the constraint derivatives, Jacobians and
         null-space functions.
@@ -635,6 +730,7 @@ class EqualityPseudoInverseController(BaseController):
         list_vars = [time_var, robot_var]
         list_names = ["time_var", "robot_var"]
         virtual_var = self.skill_spec.virtual_var
+        func_opts = self.options["function_opts"]
         if virtual_var is not None:
             list_vars += [virtual_var]
             list_names += ["virtual_var"]
@@ -649,20 +745,20 @@ class EqualityPseudoInverseController(BaseController):
         dconstr_func_list = []
         for i in xrange(len(J_expr_list)):
             J_func = cs.Function("J"+str(i), list_vars, [J_expr_list[i]],
-                                 list_names, ["J"+str(i)])
+                                 list_names, ["J"+str(i)], func_opts)
             J_func_list += [J_func]
             Jt_func = cs.Function("Jt"+str(i), list_vars, [Jt_expr_list[i]],
-                                  list_names, ["Jt"+str(i)])
+                                  list_names, ["Jt"+str(i)], func_opts)
             Jt_func_list += [Jt_func]
             J0i_func = cs.Function("J0"+str(i), list_vars, [J0i_expr_list[i]],
-                                   list_names, ["J0"+str(i)])
+                                   list_names, ["J0"+str(i)], func_opts)
             J0i_func_list += [J0i_func]
             dconstr_func = cs.Function("dcnstr"+str(i), list_vars,
                                        [dconstr_expr_list[i]],
-                                       list_names, ["dconstr"+str(i)])
+                                       list_names, ["dconstr"+str(i)], func_opts)
             dconstr_func_list += [dconstr_func]
             N0i_func = cs.Function("N0"+str(i), list_vars, [N0i_expr_list[i]],
-                                   list_names, ["N0"+str(i)])
+                                   list_names, ["N0"+str(i)], func_opts)
             N0i_func_list += [N0i_func]
         self.J_func_list = J_func_list
         self.Jt_func_list = Jt_func_list
@@ -678,6 +774,7 @@ class EqualityPseudoInverseController(BaseController):
         list_vars = [time_var, robot_var]
         list_names = ["time_var", "robot_var"]
         virtual_var = self.skill_spec.virtual_var
+        func_opts = self.options["function_opts"]
         if virtual_var is not None:
             list_vars += [virtual_var]
             list_names += ["virtual_var"]
@@ -705,7 +802,7 @@ class EqualityPseudoInverseController(BaseController):
                                                           dconstri))
         self.solver = cs.Function("fcntrl_var_des", list_vars,
                                   [cntrl_var_des_expr],
-                                  list_names, ["cntr_var_des"])
+                                  list_names, ["cntr_var_des"], func_opts)
 
     def solve(self, time_var,
               robot_var,
