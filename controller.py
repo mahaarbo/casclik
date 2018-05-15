@@ -609,12 +609,197 @@ class ModelPredictiveController(BaseController):
     options_info = """TODO
     solver_opt (dict): solver options, see casadi."""
 
-    def __init__(self, skill_spec, horizon_length, options):
-        if skill_spec.input_var is not None:
-            raise TypeError("ModelPredictiveController can only handle skills"
-                            + " without input_var, "+skill_spec.label+" has "
-                            + str(skill_spec.input_var) + " as input_var.")
+    def __init__(self, skill_spec,
+                 cost_expr,
+                 horizon_length,
+                 timestep=0.01,
+                 slack_var_weights=None,
+                 options=None):
         self.skill_spec = skill_spec
+        self.cost_expression = cost_expr
+        self.horizon_length = horizon_length
+        self.timestep = timestep
+        self.slack_var_weights = slack_var_weights
+        self.options = options
+
+    @property
+    def cost_expression(self):
+        """Get or set the cost expression."""
+        return self._cost_expression
+
+    @cost_expression.setter
+    def cost_expression(self, expr):
+        self._cost_expression = expr
+
+    @property
+    def horizon_length(self):
+        """Get or set the horizon length. Checks if it's an int."""
+        return self._horizon_length
+
+    @horizon_length.setter
+    def horizon_length(self, hl):
+        if not isinstance(hl, int):
+            raise TypeError("Horizon length must be int, currently it is"
+                            + " " + str(type(hl) + "."))
+        self._horizon_length = hl
+
+    @property
+    def timestep(self):
+        """Get or set the timestep length. Checks if it's a float."""
+        return self._timestep
+
+    @timestep.setter
+    def timestep(self, dt):
+        if not isinstance(dt, float):
+            raise TypeError("Timestep must be float, currently it is"
+                            + " " + str(type(dt)) + ".")
+        self._timestep = dt
+
+    @property
+    def slack_var_weights(self):
+        """Get or set the slack_var_weights. Can be list, np.dnarray, cs.MX."""
+        return self._slack_var_weights
+
+    @slack_var_weights.setter
+    def slack_var_weights(self, weights):
+        ns = self.skill_spec.n_slack_var
+        if weights is None:
+            weights = [1.]*ns
+        elif isinstance(weights, cs.MX) and weights.size()[0] != ns:
+            raise ValueError("slack_var_weights and slack_var dimensions"
+                             + " do not match")
+        elif isinstance(weights, cs.DM) and weights.size()[0] != ns:
+            raise ValueError("slack_var_weights and slack_var dimensions"
+                             + " do not match")
+        elif len(weights) != ns:
+            raise ValueError("slack_var_weights and slack_var dimensions"
+                             + " do not match")
+        self._slack_var_weigths = weights
+
+    @property
+    def skill_spec(self):
+        """Get or set the skill_spec. Automatically sets self._opt_var, and
+        sanity checks for input"""
+        return self._skill_spec
+
+    @skill_spec.setter
+    def skill_spec(self, spec):
+        if spec.input_var is not None:
+            raise TypeError("ModelPredictiveController can only handle skills"
+                            + " without input_var, " + spec.label + " has "
+                            + str(spec.input_var) + " as input_var.")
+        list_opt_var = [spec.robot_vel_var]
+        n_opt_var = spec.n_robot_var
+        if spec.virtual_var is not None:
+            list_opt_var += [spec.virtual_vel_var]
+            n_opt_var += spec.n_virtual_var
+        if spec.slack_var is not None:
+            list_opt_var += [spec.slack_var]
+            n_opt_var += spec.n_slack_var
+        self._opt_var = cs.vertcat(*list_opt_var)
+        self._n_opt_var = n_opt_var
+        self._skill_spec = spec
+
+    @property
+    def options(self):
+        """Get or set the options. See ModelPredictiveController.options_info.
+        Or read@options.setter in source code. Basically we stop solvers from
+        printing and allow SQP methods to warmstart.
+        """
+        return self._options
+    
+    @options.setter
+    def options(self, opt):
+        if opt is None:
+            opt = {}
+        if "solver_name" not in opt:
+            opt["solver_name"] = "ipopt"
+        if "solver_opts" not in opt:
+            opt["solver_opts"] = {}
+
+        solver_opts = opt["solver_opts"]
+        if "print_time" not in solver_opts:
+            solver_opts["print_time"] = False
+
+        if opt["solver_name"] == "blocksqp":
+            if "print_header" not in solver_opts:
+                solver_opts["print_header"] = False
+            if "print_iteration" not in solver_opts:
+                solver_opts["print_iteration"] = False
+            if "warmstart" not in solver_opts:
+                solver_opts["warmstart"] = False
+            if "qpsol" not in solver_opts:
+                solver_opts["qpsol"] = "qpoases"
+            if "qpsol_options" not in solver_opts:
+                solver_opts["qpsol_options"] = {"printLevel": "none"}
+
+        if opt["solver_name"] == "ipopt":
+            if "ipopt" not in solver_opts:
+                solver_opts["ipopt"] = {}
+                # ipopt options are a bit weird
+                # see documentation on nlpsol
+            if "print_level" not in solver_opts["ipopt"]:
+                solver_opts["ipopt"]["print_level"] = 0
+            if "jit" not in solver_opts:
+                solver_opts["jit"] = True
+            if "jit_options" not in solver_opts:
+                solver-opts["jit_options"] = {"compiler": "shell",
+                                              "flags" "-O2"}
+
+        if opt["solver_name"] == "scpgen":
+            if "print_header" not in solver_opts:
+                solver_opts["print_header"] = False
+
+        if opt["solver_name"] == "sqpmethod":
+            if "print_header" not in solver_opts:
+                solver_opts["print_header"] = False
+            if "print_iteration" not in solver_opts:
+                solver_opts["print_iteration"] = False
+            if "qpsol" not in solver_opts:
+                solver_opts["qpsol"] = "qpoases"
+            if "qpsol_options" not in solver_opts:
+                solver_opts["qpsol_options"] = {"printLevel": "none"}
+        self._options = opt
+
+    def get_cost_integrand_function(self):
+        return cs.Function("fcost_integrand", [], [],
+                           [], [])
+
+    def get_regularised_cost_expr(self):
+        pass
+
+    def get_constraints_expr(self):
+        pass
+
+    def setup_solver(self):
+        pass
+
+    def setup_problem_functions(self):
+        pass
+
+    def solve(self, time_var, robot_var,
+              virtual_var=None,
+              input_var=None,
+              opt_var0=None):
+        currvals = [time_var, robot_var]
+        if virtual_var is not None:
+            currvals += [virtual_var]
+        if input_var is not None:
+            currvals += [input_var]
+        lb_num = self.lb_cnstr_func(*currvals)
+        ub_num = self.ub_cnstr_func(*currvals)
+        if opt_var0 is None:
+            opt_var0 = [0.]*self.n_opt_var*self.horizon_length
+        else:
+            raise TypeError("TODO")
+        self.res = self.solver(x0=opt_var0, ubg=ub_num,
+                               lbg=lb_num, p=cs.vertcat(*currvals))
+        nrob = self.skill_spec.n_robot_var
+        nvirt = self.skill_spec.n_virtual_var
+        if nvirt > 0:
+            return self.res["x"][:nrob], self.res["x"][nrob:nrob+nvirt]
+        else:
+            return self.res["x"][:nrob]
 
 
 class EqualityPseudoInverseController(BaseController):
