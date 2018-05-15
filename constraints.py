@@ -1,6 +1,7 @@
 """Constraints and tools for the constraint objects.
 Todo:
     * Add list functionality to set.
+    * Add a good list check to _check_sizes
     * Add @property to the gain, set_min, & set_max that runs _check_sizes
     * Add a "combine" method to vertcat constraints.
     * Allow SetConstraints to have set_min & set_max that are expressions
@@ -82,7 +83,7 @@ class BaseConstraint(object):
         """Returns I-pinv(J)*J where J is dexpression/dvar."""
         J = self.jacobian(var)
         return cs.MX.eye(var.size()[0]) - cs.mtimes(cs.pinv(J), J)
-        
+
 
 class EqualityConstraint(BaseConstraint):
     """Equality constraints can be hard or soft, they can have different
@@ -230,10 +231,61 @@ class SetConstraint(BaseConstraint):
         return rgain and rmin and rmax
 
 
-class VelocityEqualityConstraint(EqualityConstraint):
-    """Constraint on the constraint velocity. """
-    pass
+class VelocityEqualityConstraint(BaseConstraint):
+    """VelocityEqualityConstraints are made to set a constant speed. They
+    can be hard or soft, have different priorities but they set a certain
+    expression derivative up to be an equality constraint.
+    For joint speed resolved controllers, the gain serves no purpose.
+    WARNING: This doesn't run _check_sizes.
+
+    Args:
+        label (str): Name of the constraint
+        expression (cs.MX): expression of the constraint
+        gain (float,cs.MX,cs.DM,cs.np.ndarray): gain in the constraint
+        constraint_type (str): "hard" or "soft", for opt.prob.controllers
+        priority (int): sorting key of constraints, for pseudoinv.controllers
+        target (float,cs.MX,cs.DM,cs.np.ndarray): target value of velocity
+    """
+
+    def __init__(self, label,
+                 expression,
+                 gain=1.0,
+                 constraint_type="hard",
+                 priority=1,
+                 target=0.0):
+        BaseConstraint.__init__(self, label, expression, gain)
+        self.constraint_type = constraint_type
+        self.priority = priority
+        self.target = target
 
 
-class VelocitySetConstraint(SetConstraint):
-    pass
+class VelocitySetConstraint(BaseConstraint):
+    """VelocitySetconstraints are made to set an upper and lower speed.
+    They can be hard or soft, have different priorities, but they
+    define a max and min for an expression derivative by setting it up
+    as a max-min constraint in the optimization problem.
+    For joint speed resolved controllers, the gain serves no purpose.
+    WARNING: This doesn't run _check_sizes.
+
+    Args:
+        label (str): Name of the constraint
+        expression (cs.MX): expression of the constraint
+        gain (float,cs.MX,cs.DM,cs.np.ndarray): gain in the constraint
+        set_min (list,cs.MX,cs.DM,cs.np.ndarray): minimum value of velocity
+        set_max (list,cs.mx,cs.DM,cs.np.ndarray): maximum value of velocity
+        constraint_type (str): "hard" or "soft", for opt.prob.controllers
+        priority (int): sorting key of constraint
+    """
+    def __init__(self, label,
+                 expression,
+                 gain=1.0,
+                 set_min=-1e10,
+                 set_max=1e10,
+                 constraint_type="hard",
+                 priority=1):
+        BaseConstraint.__init__(self, label,
+                                expression, gain)
+        self.constraint_type = constraint_type
+        self.priority = priority
+        self.set_min = set_min
+        self.set_max = set_max
