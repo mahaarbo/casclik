@@ -12,7 +12,7 @@ course.
 TODO:
     * Make so we can't delete the weights in ReactiveQPController
     * Add logging in controllers when making prob/solv/func
-    * Add compiling of problem_functions for faster evaluation of big ones
+    * Add compiling of problem_functions for faster evaluation in NLP
     * Make virtual var internal to controllers
     * Add sanity check on ReactiveNLPController:cost_expression.setter
     * Add VelocityEqualityConstraint and VelocitySetConstraint support
@@ -23,6 +23,7 @@ TODO:
 import casadi as cs
 from skill_specification import SkillSpecification
 from constraints import EqualityConstraint, SetConstraint
+from constraints import VelocityEqualityConstraint, VelocitySetConstraint
 
 
 class BaseController(object):
@@ -210,11 +211,17 @@ class ReactiveQPController(BaseController):
             if isinstance(cnstr, EqualityConstraint):
                 lb_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
                 ub_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
-            if isinstance(cnstr, SetConstraint):
+            elif isinstance(cnstr, SetConstraint):
                 ub_cnstr_expr += cs.mtimes(cnstr.gain,
                                            cnstr.set_max - cnstr.expression)
                 lb_cnstr_expr += cs.mtimes(cnstr.gain,
                                            cnstr.set_min - cnstr.expression)
+            elif isinstance(cnstr, VelocityEqualityConstraint):
+                lb_cnstr_expr += cnstr.target
+                ub_cnstr_expr += cnstr.target
+            elif isinstance(cnstr, VelocitySetConstraint):
+                lb_cnstr_expr += cnstr.set_min
+                ub_cnstr_expr += cnstr.set_max
             # Soft constraints have slack
             if n_slack > 0:
                 slack_mat = cs.DM.zeros((expr_size[0], n_slack))
@@ -479,11 +486,17 @@ class ReactiveNLPController(BaseController):
             if isinstance(cnstr, EqualityConstraint):
                 lb_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
                 ub_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
-            if isinstance(cnstr, SetConstraint):
+            elif isinstance(cnstr, SetConstraint):
                 ub_cnstr_expr += cs.mtimes(cnstr.gain,
                                            cnstr.set_max - cnstr.expression)
                 lb_cnstr_expr += cs.mtimes(cnstr.gain,
                                            cnstr.set_min - cnstr.expression)
+            elif isinstance(cnstr, VelocityEqualityConstraint):
+                ub_cnstr_expr += cnstr.target
+                lb_cnstr_expr += cnstr.target
+            elif isinstance(cnstr, VelocitySetConstraint):
+                ub_cnstr_expr += cnstr.set_max
+                lb_cnstr_expr += cnstr.set_min
             # Soft constraints have slack
             if n_slack > 0:
                 if cnstr.constraint_type == "soft":
