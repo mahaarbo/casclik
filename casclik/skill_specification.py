@@ -18,7 +18,6 @@ Todo:
     * Add support for VelocitySetConstraint
 """
 import casadi as cs
-import logging
 from constraints import EqualityConstraint, SetConstraint
 import sys
 

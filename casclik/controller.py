@@ -607,7 +607,11 @@ class ModelPredictiveController(BaseController):
     """
     controller_type = "ModelPredictiveController"
     options_info = """TODO
-    solver_opt (dict): solver options, see casadi."""
+    solver_opt (dict): solver options, see casadi.
+    cost_integration_method (str): "euler" or "rk4", default="euler".
+    constraint_integration_method (str): "euler" or "rk4", default="euler".
+    """
+    weight_shifter = 0.001
 
     def __init__(self, skill_spec,
                  cost_expr,
@@ -707,7 +711,7 @@ class ModelPredictiveController(BaseController):
         printing and allow SQP methods to warmstart.
         """
         return self._options
-    
+
     @options.setter
     def options(self, opt):
         if opt is None:
@@ -761,12 +765,19 @@ class ModelPredictiveController(BaseController):
                 solver_opts["qpsol_options"] = {"printLevel": "none"}
         self._options = opt
 
-    def get_cost_integrand_function(self):
-        return cs.Function("fcost_integrand", [], [],
-                           [], [])
+    def get_regularised_cost_integrand_expr(self):
+        slack_var = self.skill_spec.slack_var
+        if slack_var is not None:
+            nslack = self.skill_spec.n_slack_var
+            slack_H = cs.diag(self.slack_var_weights)
+            slack_H += self.weight_shifter*cs.MX.eye(nslack)
+            slack_cost = cs.mtimes(cs.mtimes(slack_var.T, slack_H), slack_var)
+        else:
+            return self.cost_expression
+        return self.weight_shifter*self.cost_expression + slack_cost
 
-    def get_regularised_cost_expr(self):
-        pass
+    def get_cost_function(self):
+        cost_integrand_expr = self.get_regularised_cost_integrand_expr()
 
     def get_constraints_expr(self):
         pass
@@ -779,13 +790,10 @@ class ModelPredictiveController(BaseController):
 
     def solve(self, time_var, robot_var,
               virtual_var=None,
-              input_var=None,
               opt_var0=None):
         currvals = [time_var, robot_var]
         if virtual_var is not None:
             currvals += [virtual_var]
-        if input_var is not None:
-            currvals += [input_var]
         lb_num = self.lb_cnstr_func(*currvals)
         ub_num = self.ub_cnstr_func(*currvals)
         if opt_var0 is None:
@@ -1020,14 +1028,15 @@ class PseudoInverseController(BaseController):
     The pseudo inverse controller is based on the Set-Based task
     controller of Signe Moe, and reminiscent of the stack-of-tasks
     controller. It uses the moore-penrose pseudo-inverse to calculate
-    robot_var speeds, and the in_tangent_cone to evaluate handle
-    set-based constraints. As it is a reactive controller resolved to
-    the speeds of robot_var, it can handle inputs such as force
-    sensors with a dampening effect.
+    robot_var speeds, and the in_tangent_cone to handle set-based
+    constraints. As it is a reactive controller resolved to the speeds
+    of robot_var, it can handle inputs such as force sensors with a
+    dampening effect.
 
     Args:
         skill_spec (SkillSpecification): skill specification
         options (dict): options dictionary, see self.options_info
+
     """
     controller_type = "PseudoInverseController"
     options_info = """TODO"""
