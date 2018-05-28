@@ -127,11 +127,11 @@ class SetConstraint(BaseConstraint):
     priorities but they all try to converge to a set of values. The
     gain, set_min, and set_max must not contain the robot_vel_var or
     virtual_vel_var.
-    
+
     Set constraints in the optimization problems are handled as:
-    
+
     gain*(set_min - expr) <= dexpr/dt <= gain*(set_max - expr)
-    
+
     where we take the total derivative of expression w.r.t. time to
     get the constraint in terms the optimization variables. See
     EqualityConstraint.
@@ -139,7 +139,7 @@ class SetConstraint(BaseConstraint):
     In the pseudoinverse controllers it is handled differently
     depending on the priority. Generally they have an in_tangent_cone
     function that works as follows:
-    
+
     if  set_min < expression < set_max:
         return True
     elif expression <= set_min and dexpression/dt > 0:
@@ -206,7 +206,7 @@ class SetConstraint(BaseConstraint):
         else:
             raise TypeError("Unknown set_min type. Supported are float,"
                             + " MX, DM, and numpy.ndarray")
-                
+
         if isinstance(self.set_max, float):
             if expr_size[0] == 1:
                 rmax = True

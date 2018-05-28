@@ -19,6 +19,7 @@ TODO:
     * Add inital loop-closure solving. (Getting initial virtual_var/slack).
     * Add warmstart option to ReactiveNLPController
     * Fix default options of ReactiveQPController
+    * Add support in NLP for generating C and compiling that. Might inc. speed.
 """
 import casadi as cs
 from skill_specification import SkillSpecification
@@ -356,7 +357,8 @@ class ReactiveNLPController(BaseController):
 
     @property
     def slack_var_weights(self):
-        """Get or set the slack_var_weights. Can be list np.ndarray, cs.MX, but needs to have the same length"""
+        """Get or set the slack_var_weights. Can be list np.ndarray, cs.MX,
+        but needs to have the same length"""
         return self._slack_var_weights
 
     @slack_var_weights.setter
@@ -432,7 +434,11 @@ class ReactiveNLPController(BaseController):
                 # see documentation on nlpsol
             if "print_level" not in solver_opts["ipopt"]:
                 solver_opts["ipopt"]["print_level"] = 0
-
+            if "jit" not in solver_opts:
+                solver_opts["jit"] = True
+            # if "jit_options" not in solver_opts:
+            #    solver_opts["jit_options"] = {"compiler": "gcc",
+            #                                  "flags": "-O2"}
         if opt["solver_name"] == "scpgen":
             if "print_header" not in solver_opts:
                 solver_opts["print_header"] = False
@@ -746,9 +752,9 @@ class ModelPredictiveController(BaseController):
                 solver_opts["ipopt"]["print_level"] = 0
             if "jit" not in solver_opts:
                 solver_opts["jit"] = True
-            if "jit_options" not in solver_opts:
-                solver-opts["jit_options"] = {"compiler": "shell",
-                                              "flags" "-O2"}
+            # if "jit_options" not in solver_opts:
+            #    solver_opts["jit_options"] = {"compiler": "shell",
+            #                                  "flags": "-O2"}
 
         if opt["solver_name"] == "scpgen":
             if "print_header" not in solver_opts:
@@ -881,9 +887,9 @@ class EqualityPseudoInverseController(BaseController):
         if "print_time" not in function_opts:
             function_opts["print_time"] = False
         if "jit_options" not in function_opts:
-            function_opts["jit_options"] = {"flags":"-O2"}
+            function_opts["jit_options"] = {"flags": "-O2"}
         self._options = opt
-        
+
     def get_problem_expressions(self):
         """Initializes the constraint derivatives, Jacobians and
         null-space functions.
@@ -891,7 +897,7 @@ class EqualityPseudoInverseController(BaseController):
         With opt_var = v, the desired dv is
             dv = pinv(J0)*dconstr0 + N00*pinv(J1)*dconstr1 + N01*pinv(J2)*...
         where Ji = dconstr/dv, J0i.T = [J0.T, J1.T, ... , Ji.T],
-        N1i = I - pinv(J0i)*J0i and dconstri = -Ki*constri - Jti, Jti=dconstr/dt
+        N1i = I - pinv(J0i)*J0i and dconstri = -Ki*constri - Jti, Jti=dcnstr/dt
         And those are the expressions we're constructing
         """
         time_var = self.skill_spec.time_var
@@ -961,7 +967,8 @@ class EqualityPseudoInverseController(BaseController):
             J0i_func_list += [J0i_func]
             dconstr_func = cs.Function("dcnstr"+str(i), list_vars,
                                        [dconstr_expr_list[i]],
-                                       list_names, ["dconstr"+str(i)], func_opts)
+                                       list_names, ["dconstr"+str(i)],
+                                       func_opts)
             dconstr_func_list += [dconstr_func]
             N0i_func = cs.Function("N0"+str(i), list_vars, [N0i_expr_list[i]],
                                    list_names, ["N0"+str(i)], func_opts)

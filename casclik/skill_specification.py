@@ -67,7 +67,7 @@ class SkillSpecification(object):
         """Get or set the robot_vel_var. The robot_vel_var must be the same
         dimensions as robot_var"""
         return self._robot_vel_var
-    
+
     @robot_vel_var.setter
     def robot_vel_var(self, var):
         if var is None:
