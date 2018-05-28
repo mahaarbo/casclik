@@ -9,3 +9,8 @@ It conceptually borrows from the eTaSL software, and we suggest that users use t
 
 [1]: Signe article
 [2]: eTaSL article
+
+## Installation instructions
+1. Install pip
+2. run `pip install --user .` in this folder.
+3. Try importing casclik somewhere
