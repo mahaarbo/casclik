@@ -786,11 +786,108 @@ class ModelPredictiveController(BaseController):
         cost_integrand_expr = self.get_regularised_cost_integrand_expr()
 
     def get_constraints_expr(self):
-        pass
+        cnstr_expr_list = []
+        lb_cnstr_expr_list = []
+        ub_cnstr_expr_list = []
+        time_var = self.skill_spec.time_var
+        robot_var = self.skill_spec.robot_var
+        robot_vel_var = self.skill_spec.robot_vel_var
+        virtual_var = self.skill_spec.virtual_var
+        virtual_vel_var = self.skill_spec.virtual_vel_var
+        slack_var = self.skill_spec.slack_var
+        n_slack = self.skill_spec.n_slack_var
+        slack_ind = 0
+        for cnstr in self.skill_spec.constraints:
+            expr_size = cnstr.expression.size()
+            cnstr_expr = cnstr.jtimes(robot_var,
+                                      robot_vel_var)
+            if virtual_var is not None:
+                cnstr_expr += cnstr.jtimes(virtual_var,
+                                           virtual_vel_var)
+            lb_cnstr_expr = -cnstr.jacobian(time_var)
+            ub_cnstr_expr = -cnstr.jacobian(time_var)
+            if isinstance(cnstr, EqualityConstraint):
+                ub_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
+                lb_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
+            elif isinstance(cnstr, SetConstraint):
+                ub_cnstr_expr += cs.mtimes(cnstr.gain,
+                                           cnstr.set_max - cnstr.expression)
+                lb_cnstr_expr += cs.mtimes(cnstr.gain,
+                                           cnstr.set_min - cnstr.expression)
+            elif isinstance(cnstr, VelocityEqualityConstraint):
+                ub_cnstr_expr += cnstr.target
+                lb_cnstr_expr += cnstr.target
+            elif isinstance(cnstr, VelocitySetConstraint):
+                ub_cnstr_expr += cnstr.set_max
+                lb_cnstr_expr += cnstr.set_min
 
+            if n_slack > 0:
+                if cnstr.constraint_type == "soft":
+                    cnstr_expr += -slack_var[slack_ind:slack_ind+expr_size[0]]
+                    slack_ind += expr_size[0]
+            cnstr_expr_list += [cnstr_expr]
+            ub_cnstr_expr_list += [ub_cnstr_expr]
+            lb_cnstr_expr_list += [lb_cnstr_expr]
+        cnstr_expr_full = cs.vertcat(*cnstr_expr_list)
+        ub_cnstr_expr_full = cs.vertcat(*ub_cnstr_expr_list)
+        lb_cnstr_expr_full = cs.vertcat(*lb_cnstr_expr_list)
+        return cnstr_expr_full, lb_cnstr_expr_full, ub_cnstr_expr_full
+
+    def setup_problem_functions(self):
+        full_cost_expr = self.get_regularised_cost_expr()
+        cnstr_expr, lb_cnstr_expr, ub_cnstr_expr = self.get_constraints_expr()
+        time_var = self.skill_spec.time_var
+        robot_var = self.skill_spec.robot_var
+        list_vars = [time_var, robot_var]
+        list_names = ["time_var", "robot_var"]
+        cntrl_vars = [self.skill_spec.robot_vel_var]
+        cntrl_names = ["robot_vel_var"]
+        virtual_var = self.skill_spec.virtual_var
+        if virtual_var is not None:
+            list_vars += [virtual_var]
+            list_names += ["virtual_var"]
+            cntrl_vars += [self.skill_spec.virtual_vel_var]
+            cntrl_names += ["virtual_vel_var"]
+        list_vars += cntrl_var
+        list_names += cntrl_names
+        function_options = self.options["function_opts"]
+        cost_func = cs.Function("cost", list_vars, [full_cost_expr],
+                                list_names, ["cost"],
+                                function_options)
+        cnstr_func = cs.Function("cnstr", list_vars, [cnstr_expr],
+                                 list_names, ["cnstr"],
+                                 function_options)
+        lb_cnstr_func = cs.Function("lb_cnstr", list_vars, [lb_cnstr_expr],
+                                    list_names, ["lb_cnstr"],
+                                    function_options)
+        ub_cnstr_func = cs.Function("ub_cnstr", list_vars, [ub_cnstr_expr],
+                                    list_names, ["ub_cnstr"],
+                                    function_options)
+        self.cost_func = cost_func
+        self.cnstr_func = cnstr_func
+        self.lb_cnstr_func = lb_cnstr_func
+        self.ub_cnstr_func = ub_cnstr_func
+        return (cost_func, cnstr_func, lb_cnstr_func, ub_cnstr_func)
+    
     def setup_solver(self):
-        pass
-
+        all_funcs = self.setup_problem_functions()
+        cost_func = all_funcs[0]
+        cnstr_func = all_funcs[1]
+        lb_cnstr_func = all_funcs[2]
+        ub_cnstr_func = all_funcs[3]
+        time_var = self.skill_spec.time_var
+        robot_var = self.skill_spec.robot_var
+        list_par = [time_var, robot_var]
+        list_names = ["time_var", "robot_var"]
+        virtual_var = self.skill_spec.virtual_var
+        if virtual_var is not None:
+            list_par += [virtual_var]
+            list_names += ["virtual_var"]
+        input_var = self.skill_spec.input_var
+        if input_var is not None:
+            list_par += [input_var]
+            list_names += ["input_var"]
+        
     def setup_problem_functions(self):
         pass
 
