@@ -931,10 +931,6 @@ class EqualityPseudoInverseController(BaseController):
     def __init__(self, skill_spec,
                  options=None):
         self.skill_spec = skill_spec
-        if options is None:
-            options = {}
-        if "feedforward" not in options:
-            options["feedforward"] = True
         self.options = options
 
     @property
@@ -984,7 +980,8 @@ class EqualityPseudoInverseController(BaseController):
         if "print_time" not in function_opts:
             function_opts["print_time"] = False
         if "jit_options" not in function_opts:
-            function_opts["jit_options"] = {"flags": "-O2"}
+            function_opts["jit_options"] = {"compiler": "gcc",
+                                            "flags": "-O2"}
         self._options = opt
 
     def get_problem_expressions(self):
