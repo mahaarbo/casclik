@@ -1318,10 +1318,26 @@ class PseudoInverseController(BaseController):
                     mode["N0i_expr_list"] += [N0i]
                     des_dconstri = cs.MX.zeros(cnstr.expression.size()[0])
                     mode["des_dconstr_expr_list"] += [des_dconstri]
+            
+            elif isinstance(cnstr, VelocityEqualityConstraint):
+                # Velocity Equality constraints: des_dconstri is just set_min
+                for mode in modes:
+                    mode["J_expr_list"] += [Ji]
+                    mode["Jt_expr_list"] += [Jti]
+                    J0i = cs.vertcat(*mode["J_expr_list"])
+                    mode["J0i_expr_list"] += [J0i]
+                    N0i = cs.MX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
+                    mode["N0i_expr_list"] += [N0i]
+                    des_dconstri = cnstr.target
+                    if self.options["feedforward"]:
+                        des_dconstri += -Jti
+                    mode["des_dconstr_expr_list"] += [des_dconstri]
+                        
             else:
                 raise NotImplementedError("PseudoInverseController only knows"
-                                          + " of EqualityConstraint and "
-                                          + "SetConstraint. You gave it "
+                                          + " of EqualityConstraint, "
+                                          + "SetConstraint, and Velocity"
+                                          + "EqualityConstraint. You gave it "
                                           + str(cnstr.label) + "of type:"
                                           + str(type(cnstr)) + ".")
         return modes
@@ -1402,4 +1418,9 @@ class PseudoInverseController(BaseController):
             if ALLOKAY:
                 self.current_mode = i
                 break
+        # Split robot_vel_var and virtual_vel_var
+        nrob = self.skill_spec.n_robot_var
+        nvirt = self.skill_spec.n_virtual_var
+        if nvirt > 0:
+            return dcntrl_var[:nrob], dcntrl_var[nrob:nrob+nvirt]
         return dcntrl_var

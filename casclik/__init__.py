@@ -1,4 +1,4 @@
-from constraints import EqualityConstraint, SetConstraint
+from constraints import EqualityConstraint, SetConstraint, VelocityEqualityConstraint, VelocitySetConstraint
 from skill_specification import SkillSpecification
 from controller import ReactiveQPController, ReactiveNLPController
 from controller import EqualityPseudoInverseController, PseudoInverseController
