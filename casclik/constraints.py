@@ -9,6 +9,7 @@ Todo:
 import casadi as cs
 import logging
 
+
 class BaseConstraint(object):
     """Base constraint object
     Args:
@@ -121,6 +122,27 @@ class EqualityConstraint(BaseConstraint):
         if not self._check_sizes():
             raise ValueError("Gain and expression dimensions do not match.")
 
+    def __add__(self, cnstrB):
+        """Concatenate two constraints of equal priority and type."""
+        if not self.priority == cnstrB.priority:
+            raise TypeError("Added constraints must have same priority.")
+        if not self.constraint_type == cnstrB.constraint_type:
+            raise TypeError("Added constrains must have same constraint type")
+        A_size = self.expression.size()[0]
+        B_size = self.expression.size()[0]
+        exprA = self.expression
+        exprB = cnstrB.expression
+        expr = cs.vertcat(exprA, exprB)
+        gain = cs.MX.zeros(A_size + B_size,
+                           A_size + B_size)
+        gain[:A_size, :A_size] = self.gain
+        gain[:-B_size, :-B_size] = cnstrB.gain
+        return EqualityConstraint(self.label+"+"+cnstrB.label,
+                                  expression=expr,
+                                  gain=gain,
+                                  constraint_type=self.constraint_type,
+                                  priority=self.priority)
+
 
 class SetConstraint(BaseConstraint):
     """Set constraints can be hard or soft, they can have different
@@ -229,6 +251,33 @@ class SetConstraint(BaseConstraint):
             raise TypeError("Unknown set_max type. supported are float,"
                             + " MX, DM, and numpy.ndarray")
         return rgain and rmin and rmax
+
+    def __add__(self, cnstrB):
+        """Concatenate two constraints of equal priority and type."""
+        if not self.priority == cnstrB.priority:
+            raise TypeError("Added constraints must have same priority.")
+        if not self.constraint_type == cnstrB.constraint_type:
+            raise TypeError("Added constrains must have same constraint type")
+        A_size = self.expression.size()[0]
+        B_size = self.expression.size()[0]
+        exprA = self.expression
+        exprB = cnstrB.expression
+        expr = cs.vertcat(exprA, exprB)
+        gain = cs.MX.zeros(A_size + B_size,
+                           A_size + B_size)
+        gain[:A_size, :A_size] = self.gain
+        gain[:-B_size, :-B_size] = cnstrB.gain
+        set_min = cs.vertcat(self.set_min,
+                             cnstrB.set_min)
+        set_max = cs.vertcat(self.set_max,
+                             cnstrB.set_max)
+        return SetConstraint(self.label+"+"+cnstrB.label,
+                             expression=expr,
+                             gain=gain,
+                             set_min=set_min,
+                             set_max=set_max,
+                             constraint_type=self.constraint_type,
+                             priority=self.priority)
 
 
 class VelocityEqualityConstraint(BaseConstraint):
