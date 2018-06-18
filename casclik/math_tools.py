@@ -1,14 +1,12 @@
 import casadi as cs
 
-def Rx(angle):
-    
 
 def axis_angle_to_rotation(axis, angle):
     # Source:
     # https://en.wikipedia.org/wiki/Axis%E2%80%93angle_representation
     res = cs.MX.eye(3)
-    + cs.sin(angle)*cs.skew(axis)
-    +(1-cs.cos(angle))*cs.mtimes(cs.skew(axis), cs.skew(axis))
+    res += cs.sin(angle)*cs.skew(axis)
+    res += (1-cs.cos(angle))*cs.mtimes(cs.skew(axis), cs.skew(axis))
     return res
 
 
@@ -19,11 +17,18 @@ def rotation_to_angle(R):
 
 
 def rotation_to_axis(R):
-    denominator = cs.sqrt()
     vec = cs.vertcat(R[3, 2] - R[2, 3],
                      R[1, 3] - R[3, 1],
                      R[2, 1] - R[1, 2])
-    
+    ang_core = (cs.trace(R)-1.0)/2.0
+    denom = 1.0/(2*(cs.sqrt(1-ang_core)))
+    return cs.if_else(ang_core == 1.0,
+                      cs.vertcat(1.0,
+                                 0.0,
+                                 0.0),
+                      vec*denom)
+
+
 def manipulability_measure(J, version="yoshikawa"):
     """Returns a manipulability measure of the jacobian J.
     if H = JJ^T and describes the manipulation ellipsoid (ME)
