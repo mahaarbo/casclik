@@ -58,9 +58,9 @@ class ReactiveQPController(BaseController):
 
     Args:
         skill_spec (SkillSpecification): skill specification
-        robot_var_weights (list): weights in QP, can be floats, or MX syms
-        virtual_var_weights (list): weights in QP, can be floats, or MX syms
-        slack_var_weights (list): weights in QP, can be floats or MX syms
+        robot_var_weights (list): weights in QP, can be floats, or SX syms
+        virtual_var_weights (list): weights in QP, can be floats, or SX syms
+        slack_var_weights (list): weights in QP, can be floats or SX syms
         options (dict): options dictionary, see self.options_info
 
     """
@@ -126,7 +126,7 @@ class ReactiveQPController(BaseController):
         ns = self.skill_spec.n_slack_var
         if weights is None:
             weights = [1.]*ns
-        elif isinstance(weights, cs.MX) and weights.size()[0] != ns:
+        elif isinstance(weights, cs.SX) and weights.size()[0] != ns:
             raise ValueError("slack_var_weights and slack_var dimensions"
                              + " do not match.")
         elif len(weights) != self.skill_spec.n_slack_var:
@@ -173,12 +173,12 @@ class ReactiveQPController(BaseController):
         nvirt = self.skill_spec.n_virtual_var
         nslack = self.skill_spec.n_slack_var
         n_opt_var = nrob + nvirt + nslack
-        H = cs.MX.zeros((n_opt_var, n_opt_var))
+        H = cs.SX.zeros((n_opt_var, n_opt_var))
         H[:nrob, :nrob] = self.weight_shifter*cs.diag(self.robot_var_weights)
         if nvirt > 0:
             H[nrob:nrob+nvirt, nrob:nrob+nvirt] = self.weight_shifter*cs.diag(self.virtual_var_weights)
         if nslack > 0:
-            H[-nslack:, -nslack:] = self.weight_shifter*cs.MX.eye(nslack) + cs.diag(self.slack_var_weights)
+            H[-nslack:, -nslack:] = self.weight_shifter*cs.SX.eye(nslack) + cs.diag(self.slack_var_weights)
         return H
 
     def get_constraints_expr(self):
@@ -322,7 +322,7 @@ class ReactiveQPController(BaseController):
         Bub_func = cs.Function("Bub_func")
         # Setup values
         if robot_vel_var0 is None:
-            robot_vel_var0 = cs.MX.zeros(self.n_robot_var)
+            robot_vel_var0 = cs.SX.zeros(self.n_robot_var)
         const_list = [time_var0, robot_var0, robot_vel_var0]
         # Solve
 
@@ -366,7 +366,7 @@ class ReactiveNLPController(BaseController):
 
     Args:
         skill_spec (SkillSpecification): skill specification
-        cost_expr (cs.MX): expression of the cost function
+        cost_expr (cs.SX): expression of the cost function
         slack_var_weights (list): weights in QP, defaults to 1.
         options (dict): options dictionary, see self.options_info
 
@@ -398,7 +398,7 @@ class ReactiveNLPController(BaseController):
 
     @property
     def slack_var_weights(self):
-        """Get or set the slack_var_weights. Can be list np.ndarray, cs.MX,
+        """Get or set the slack_var_weights. Can be list np.ndarray, cs.SX,
         but needs to have the same length"""
         return self._slack_var_weights
 
@@ -407,7 +407,7 @@ class ReactiveNLPController(BaseController):
         ns = self.skill_spec.n_slack_var
         if weights is None:
             weights = [1.]*ns
-        elif isinstance(weights, cs.MX) and weights.size()[0] != ns:
+        elif isinstance(weights, cs.SX) and weights.size()[0] != ns:
             raise ValueError("slack_var_weights and slack_var dimensions"
                              + " do not match.")
         elif len(weights) != self.skill_spec.n_slack_var:
@@ -500,7 +500,7 @@ class ReactiveNLPController(BaseController):
         if slack_var is not None:
             nslack = self.skill_spec.n_slack_var
             slack_H = cs.diag(self.slack_var_weights)
-            slack_H += self.weight_shifter*cs.MX.eye(nslack)
+            slack_H += self.weight_shifter*cs.SX.eye(nslack)
             slack_cost = cs.mtimes(cs.mtimes(slack_var.T, slack_H), slack_var)
         else:
             slack_cost = 0.0
@@ -712,7 +712,7 @@ class ModelPredictiveController(BaseController):
 
     @property
     def slack_var_weights(self):
-        """Get or set the slack_var_weights. Can be list, np.dnarray, cs.MX."""
+        """Get or set the slack_var_weights. Can be list, np.dnarray, cs.SX."""
         return self._slack_var_weights
 
     @slack_var_weights.setter
@@ -720,7 +720,7 @@ class ModelPredictiveController(BaseController):
         ns = self.skill_spec.n_slack_var
         if weights is None:
             weights = [1.]*ns
-        elif isinstance(weights, cs.MX) and weights.size()[0] != ns:
+        elif isinstance(weights, cs.SX) and weights.size()[0] != ns:
             raise ValueError("slack_var_weights and slack_var dimensions"
                              + " do not match")
         elif isinstance(weights, cs.DM) and weights.size()[0] != ns:
@@ -821,7 +821,7 @@ class ModelPredictiveController(BaseController):
         if slack_var is not None:
             nslack = self.skill_spec.n_slack_var
             slack_H = cs.diag(self.slack_var_weights)
-            slack_H += self.weight_shifter*cs.MX.eye(nslack)
+            slack_H += self.weight_shifter*cs.SX.eye(nslack)
             slack_cost = cs.mtimes(cs.mtimes(slack_var.T, slack_H), slack_var)
         else:
             return self.cost_expression
@@ -1055,7 +1055,7 @@ class EqualityPseudoInverseController(BaseController):
             Jt_expr_list += [Jti]
             J0i = cs.vertcat(*J_expr_list)
             J0i_expr_list += [J0i]
-            N0i = cs.MX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
+            N0i = cs.SX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
             N0i_expr_list += [N0i]
             des_dconstri = -cs.mtimes(cnstr.gain, cnstr.expression)
             if self.options["feedforward"]:
@@ -1141,7 +1141,7 @@ class EqualityPseudoInverseController(BaseController):
         dconstr_expr_list = all_expr_lists[4]
         # Initialize the expression of proper size
         n_state_var = self.n_state_var
-        cntrl_var_des_expr = cs.MX.zeros(n_state_var)
+        cntrl_var_des_expr = cs.SX.zeros(n_state_var)
         for i in xrange(len(J_expr_list)):
             Ji = J_expr_list[i]
             dconstri = dconstr_expr_list[i]
@@ -1328,7 +1328,7 @@ class PseudoInverseController(BaseController):
                     mode["Jt_expr_list"] += [Jti]
                     J0i = cs.vertcat(*mode["J_expr_list"])
                     mode["J0i_expr_list"] += [J0i]
-                    N0i = cs.MX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
+                    N0i = cs.SX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
                     mode["N0i_expr_list"] += [N0i]
                     des_dconstri = -cs.mtimes(cnstr.gain, cnstr.expression)
                     if self.options["feedforward"]:
@@ -1359,9 +1359,9 @@ class PseudoInverseController(BaseController):
                     mode["J_expr_list"] += [Ji]
                     mode["Jt_expr_list"] += [Jti]
                     J0i = cs.vertcat(*mode["J_expr_list"])
-                    N0i = cs.MX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
+                    N0i = cs.SX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
                     mode["N0i_expr_list"] += [N0i]
-                    des_dconstri = cs.MX.zeros(cnstr.expression.size()[0])
+                    des_dconstri = cs.SX.zeros(cnstr.expression.size()[0])
                     mode["des_dconstr_expr_list"] += [des_dconstri]
             
             elif isinstance(cnstr, VelocityEqualityConstraint):
@@ -1371,7 +1371,7 @@ class PseudoInverseController(BaseController):
                     mode["Jt_expr_list"] += [Jti]
                     J0i = cs.vertcat(*mode["J_expr_list"])
                     mode["J0i_expr_list"] += [J0i]
-                    N0i = cs.MX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
+                    N0i = cs.SX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
                     mode["N0i_expr_list"] += [N0i]
                     des_dconstri = cnstr.target
                     if self.options["feedforward"]:
@@ -1415,7 +1415,7 @@ class PseudoInverseController(BaseController):
         mode_ind = 0
         full_cntrl_var_des_expr = []
         for mode in modes:
-            cntrl_var_des_expr = cs.MX.zeros(n_state_var)
+            cntrl_var_des_expr = cs.SX.zeros(n_state_var)
             for i in xrange(len(mode["J_expr_list"])):
                 Ji = mode["J_expr_list"][i]
                 dconstri = mode["des_dconstr_expr_list"][i]

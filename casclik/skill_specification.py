@@ -27,10 +27,10 @@ class SkillSpecification(object):
 
     Args:
         label (str): Name of the skill
-        time_var (cs.MX.sym): symbol for time
-        robot_var (cs.MX.sym): Controllable robot variables
-        virtual_var (cs.MX.sym): Internal virtual variables
-        input_var (cs.MX.sym): Input variables, jacobian not calculated
+        time_var (cs.SX.sym): symbol for time
+        robot_var (cs.SX.sym): Controllable robot variables
+        virtual_var (cs.SX.sym): Internal virtual variables
+        input_var (cs.SX.sym): Input variables, jacobian not calculated
     """
     def __init__(self, label, time_var,
                  robot_var,
@@ -71,10 +71,10 @@ class SkillSpecification(object):
     @robot_vel_var.setter
     def robot_vel_var(self, var):
         if var is None:
-            self._robot_vel_var = cs.MX.sym("robot_vel_var", self.n_robot_var)
+            self._robot_vel_var = cs.SX.sym("robot_vel_var", self.n_robot_var)
         else:
-            if not isinstance(var, cs.MX):
-                raise TypeError("robot_vel_var must be cs.MX.sym.")
+            if not isinstance(var, cs.SX):
+                raise TypeError("robot_vel_var must be cs.SX.sym.")
             if var.size() != self.robot_var.size():
                 raise ValueError("robot_var and robot_vel_var must have the"
                                  + " same dimensions")
@@ -101,11 +101,11 @@ class SkillSpecification(object):
     @virtual_vel_var.setter
     def virtual_vel_var(self, var):
         if var is None:
-            self._virtual_vel_var = cs.MX.sym("virtual_vel_var",
+            self._virtual_vel_var = cs.SX.sym("virtual_vel_var",
                                               self.n_virtual_var)
         else:
-            if not isinstance(var, cs.MX):
-                raise TypeError("virtual_vel_var must be cs.MX.sym.")
+            if not isinstance(var, cs.SX):
+                raise TypeError("virtual_vel_var must be cs.SX.sym.")
             if var.size() != self.virtual_var.size():
                 raise ValueError("virtual_vel_var and virtual_var must have"
                                  + " the same dimensions")
@@ -142,7 +142,7 @@ class SkillSpecification(object):
                 n_slack_var += cnstr.expression.size()[0]
         self.n_slack_var = n_slack_var
         if n_slack_var != 0:
-            self.slack_var = cs.MX.sym("slack_var", n_slack_var)
+            self.slack_var = cs.SX.sym("slack_var", n_slack_var)
         else:
             self.slack_var = None
 

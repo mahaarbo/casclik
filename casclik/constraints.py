@@ -14,8 +14,8 @@ class BaseConstraint(object):
     """Base constraint object
     Args:
         label (str): Name of the constraint
-        expression (cs.MX): expression of the constraint
-        gain (float,MX,DM,numpy.ndarray): gain in the constraint
+        expression (cs.SX): expression of the constraint
+        gain (float,SX,DM,numpy.ndarray): gain in the constraint
     """
     constraint_class = "BaseConstraint"
 
@@ -35,7 +35,7 @@ class BaseConstraint(object):
         expr_size = self.size()
         if expr_size[1] != 1:
             return False
-        if isinstance(self.gain, cs.MX):
+        if isinstance(self.gain, cs.SX):
             gs = self.gain.size()
             if gs[0] == gs[1]:
                 if gs[1] == expr_size[0] or gs[1] == 1:
@@ -56,12 +56,12 @@ class BaseConstraint(object):
                 if not isinstance(val, float):
                     if not isinstance(val, int):
                         raise TypeError("Unknown gain type. Supported are:"
-                                        + " float, MX, DM, numpy.ndarray, and"
+                                        + " float, SX, DM, numpy.ndarray, and"
                                         + "list of floats/ints")
             if len(self.gain) == expr_size[0]:
                 return True
         else:
-            raise TypeError("Unknown gain type. Supported are: float, MX, DM,"
+            raise TypeError("Unknown gain type. Supported are: float, SX, DM,"
                             + " numpy.ndarray, and list of floats/ints.")
         return False
 
@@ -69,7 +69,7 @@ class BaseConstraint(object):
         """Returns the partial derivative of the expression with respect to
         var.
         Return:
-            cs.MX: expression of partial derivative
+            cs.SX: expression of partial derivative
         """
         return cs.jacobian(self.expression, var)
 
@@ -77,13 +77,13 @@ class BaseConstraint(object):
         """Returns the partial derivative of the expression with respect to
         varA, times varB.
         Return:
-            cs.MX: expression of partial derivative"""
+            cs.SX: expression of partial derivative"""
         return cs.jtimes(self.expression, varA, varB)
 
     def nullspace(self, var):
         """Returns I-pinv(J)*J where J is dexpression/dvar."""
         J = self.jacobian(var)
-        return cs.MX.eye(var.size()[0]) - cs.mtimes(cs.pinv(J), J)
+        return cs.SX.eye(var.size()[0]) - cs.mtimes(cs.pinv(J), J)
 
 
 class EqualityConstraint(BaseConstraint):
@@ -103,8 +103,8 @@ class EqualityConstraint(BaseConstraint):
 
     Args:
         label (str): Name of the constraint
-        expression (cs.MX): expression of the constraint
-        gain (float,cs.MX,cs.DM,cs.np.ndarray): gain in the constraint
+        expression (cs.SX): expression of the constraint
+        gain (float,cs.SX,cs.DM,cs.np.ndarray): gain in the constraint
         constraint_type (str): "hard" or "soft", for opt.prob. controllers
         priority (int): sorting key of constraint, for pseudoinv. controllers
 
@@ -133,7 +133,7 @@ class EqualityConstraint(BaseConstraint):
         exprA = self.expression
         exprB = cnstrB.expression
         expr = cs.vertcat(exprA, exprB)
-        gain = cs.MX.zeros(A_size + B_size,
+        gain = cs.SX.zeros(A_size + B_size,
                            A_size + B_size)
         gain[:A_size, :A_size] = self.gain
         gain[:-B_size, :-B_size] = cnstrB.gain
@@ -173,10 +173,10 @@ class SetConstraint(BaseConstraint):
 
     Args:
         label (str): Name of the constraint
-        expression (cs.MX): expression of the constraint
-        gain (float,cs.MX,cs.DM,cs.np.ndarray): gain in the constraint
-        set_min (list, cs.MX, cs.DM, cs.np.ndarray): minimum value of set
-        set_max (list, cs.MX, cs.DM, cs.np.ndarray): maximum value of set
+        expression (cs.SX): expression of the constraint
+        gain (float,cs.SX,cs.DM,cs.np.ndarray): gain in the constraint
+        set_min (list, cs.SX, cs.DM, cs.np.ndarray): minimum value of set
+        set_max (list, cs.SX, cs.DM, cs.np.ndarray): maximum value of set
         constraint_type (str): "hard" or "soft", for opt.prob. controllers
         priority (int): sorting key of constraint, for pseudoinv. controllers
 
@@ -210,7 +210,7 @@ class SetConstraint(BaseConstraint):
         if isinstance(self.set_min, float):
             if expr_size[0] == 1:
                 rmin = True
-        elif isinstance(self.set_min, cs.MX):
+        elif isinstance(self.set_min, cs.SX):
             if self.set_min.is_symbolic():
                 rmin = False
             else:
@@ -227,12 +227,12 @@ class SetConstraint(BaseConstraint):
                 rmin = True
         else:
             raise TypeError("Unknown set_min type. Supported are float,"
-                            + " MX, DM, and numpy.ndarray")
+                            + " SX, DM, and numpy.ndarray")
 
         if isinstance(self.set_max, float):
             if expr_size[0] == 1:
                 rmax = True
-        elif isinstance(self.set_max, cs.MX):
+        elif isinstance(self.set_max, cs.SX):
             if self.set_min.is_symbolic():
                 rmax = False
             else:
@@ -249,7 +249,7 @@ class SetConstraint(BaseConstraint):
                 rmax = True
         else:
             raise TypeError("Unknown set_max type. supported are float,"
-                            + " MX, DM, and numpy.ndarray")
+                            + " SX, DM, and numpy.ndarray")
         return rgain and rmin and rmax
 
     def __add__(self, cnstrB):
@@ -263,7 +263,7 @@ class SetConstraint(BaseConstraint):
         exprA = self.expression
         exprB = cnstrB.expression
         expr = cs.vertcat(exprA, exprB)
-        gain = cs.MX.zeros(A_size + B_size,
+        gain = cs.SX.zeros(A_size + B_size,
                            A_size + B_size)
         gain[:A_size, :A_size] = self.gain
         gain[:-B_size, :-B_size] = cnstrB.gain
@@ -288,12 +288,12 @@ class VelocityEqualityConstraint(BaseConstraint):
     WARNING: This doesn't run _check_sizes.
 
     Args:
-        label (str): Name of the constraint
-        expression (cs.MX): expression of the constraint
-        gain (float,cs.MX,cs.DM,cs.np.ndarray): gain in the constraint
+        label (str): Name of the constraintc
+        expression (cs.SX): expression of the constraint
+        gain (float,cs.SX,cs.DM,cs.np.ndarray): gain in the constraint
         constraint_type (str): "hard" or "soft", for opt.prob.controllers
         priority (int): sorting key of constraints, for pseudoinv.controllers
-        target (float,cs.MX,cs.DM,cs.np.ndarray): target value of velocity
+        target (float,cs.SX,cs.DM,cs.np.ndarray): target value of velocity
     """
 
     def __init__(self, label,
@@ -318,9 +318,9 @@ class VelocitySetConstraint(BaseConstraint):
 
     Args:
         label (str): Name of the constraint
-        expression (cs.MX): expression of the constraint
-        gain (float,cs.MX,cs.DM,cs.np.ndarray): gain in the constraint
-        set_min (list,cs.MX,cs.DM,cs.np.ndarray): minimum value of velocity
+        expression (cs.SX): expression of the constraint
+        gain (float,cs.SX,cs.DM,cs.np.ndarray): gain in the constraint
+        set_min (list,cs.SX,cs.DM,cs.np.ndarray): minimum value of velocity
         set_max (list,cs.mx,cs.DM,cs.np.ndarray): maximum value of velocity
         constraint_type (str): "hard" or "soft", for opt.prob.controllers
         priority (int): sorting key of constraint
