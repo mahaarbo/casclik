@@ -435,9 +435,9 @@ class ReactiveNLPController(BaseController):
                 solver_opts["ipopt"]["print_level"] = 0
             if "jit" not in solver_opts:
                 solver_opts["jit"] = True
-            # if "jit_options" not in solver_opts:
-            #    solver_opts["jit_options"] = {"compiler": "gcc",
-            #                                  "flags": "-O2"}
+            if "jit_options" not in solver_opts:
+                solver_opts["jit_options"] = {"flags": "-Ofast"}
+
         if opt["solver_name"] == "scpgen":
             if "print_header" not in solver_opts:
                 solver_opts["print_header"] = False
@@ -751,9 +751,9 @@ class ModelPredictiveController(BaseController):
                 solver_opts["ipopt"]["print_level"] = 0
             if "jit" not in solver_opts:
                 solver_opts["jit"] = True
-            # if "jit_options" not in solver_opts:
-            #    solver_opts["jit_options"] = {"compiler": "shell",
-            #                                  "flags": "-O2"}
+            if "jit_options" not in solver_opts:
+                solver_opts["jit_options"] = {#"compiler": "gcc",
+                                              "flags": "-Ofast"}
 
         if opt["solver_name"] == "scpgen":
             if "print_header" not in solver_opts:
