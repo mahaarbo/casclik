@@ -11,15 +11,14 @@ course.
 
 TODO:
     * Make so we can't delete the weights in ReactiveQPController
-    * Add logging in controllers when making prob/solv/func
-    * Add compiling of problem_functions for faster evaluation in NLP
-    * Make virtual var internal to controllers
+    * Add logging in controllers when making prob/solv/func?
+    * Make virtual var internal to controllers?
     * Add sanity check on ReactiveNLPController:cost_expression.setter
     * Add VelocityEqualityConstraint and VelocitySetConstraint support
     * Add inital loop-closure solving. (Getting initial virtual_var/slack).
     * Add warmstart option to ReactiveNLPController
-    * Fix default options of ReactiveQPController
-    * Add support in NLP for generating C and compiling that. Might inc. speed.
+    * Add multidim SetConstraint support in PseudoInverseController (for loop?)
+    * Fix virtual variables in ReactiveNLPController
 """
 import casadi as cs
 from skill_specification import SkillSpecification
