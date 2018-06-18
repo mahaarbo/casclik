@@ -574,6 +574,10 @@ class ReactiveNLPController(BaseController):
         self.lb_cnstr_func = lb_cnstr_func
         self.ub_cnstr_func = ub_cnstr_func
 
+    def solve_initial_problem(self, robot_var0):
+        """Solves the initial problem, finding slack and virtual variables."""
+        raise NotImplementedError("To be done")
+
     def solve(self, time_var, robot_var,
               virtual_var=None,
               input_var=None,
