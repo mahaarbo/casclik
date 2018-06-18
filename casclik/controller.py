@@ -68,7 +68,7 @@ class ReactiveQPController(BaseController):
     options_info = """TODO
     solver_opts (dict): solver options, see casadi.
     function_opts (dict): problem function options. See below."""
-    weight_shifter = 0.001  # See eTaSL paper, corresponds to mu
+    weight_shifter = 0.001  # See eTaSL paper, corresponds to mu symbol
 
     def __init__(self, skill_spec,
                  robot_var_weights=None,
