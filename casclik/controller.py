@@ -1354,7 +1354,6 @@ class PseudoInverseController(BaseController):
                         amodes += modes[sect_ind:sect_ind+section_size]
                     sect_ind += section_size
                 # Then loop over those to modify
-                print "Amodes:",len(amodes)
                 for mode in amodes:
                     mode["J_expr_list"] += [Ji]
                     mode["Jt_expr_list"] += [Jti]
