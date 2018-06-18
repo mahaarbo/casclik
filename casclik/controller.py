@@ -286,6 +286,48 @@ class ReactiveQPController(BaseController):
         self.Blb_func = Blb_func
         self.Bub_func = Bub_func
 
+    def solve_initial_problem(self, time_var0, robot_var0,
+                              robot_vel_var0=None, virtual_var0=None):
+        """Solves the initial problem, finding slack and virtual variables."""
+        # Test if we don't need to do anything
+        shortcut = self.skill_spec.virtual_var is None
+        shortcut = shortcut and self.skill_spec.slack_var is None
+        if shortcut:
+            # If no slack, and no virtual, nothing to initializes
+            return None
+        # Get expressions
+        H_expr = self.get_cost_expr()
+        A_expr, Blb_expr, Bub_expr = self.get_constraints_expr()
+        # Prepare variables
+        time_var = self.skill_spec.time_var
+        robot_var = self.skill_spec.robot_var
+        robot_vel_var = self.skill_spec.robot_vel_var
+        list_vars = [time_var, robot_var, robot_vel_var]
+        list_names = ["time_var", "robot_var", "robot_vel_var"]
+        virtual_var = self.skill_spec.virtual_var
+        virtual_vel_var = self.skill_spec.virtual_vel_var
+        if virtual_var is not None:
+            opt_var = [virtual_vel_var]
+            list_vars += [virtual_var]
+            list_names += ["virtual_var"]
+        slack_var = self.skill_spec.slack_var
+        n_slack = self.skill_spec.n_slack_var
+        if slack_var is not None:
+            opt_list += [slack_var]
+        # Setup the partial expressions
+        H_func = cs.Function("H_func", list_vars
+        )
+        A_func = cs.Function("A_func")
+        Blb_func = cs.Function("Blb_func")
+        Bub_func = cs.Function("Bub_func")
+        # Setup values
+        if robot_vel_var0 is None:
+            robot_vel_var0 = cs.MX.zeros(self.n_robot_var)
+        const_list = [time_var0, robot_var0, robot_vel_var0]
+        # Solve
+
+        raise NotImplementedError("To be done")
+
     def solve(self, time_var,
               robot_var,
               virtual_var=None,
