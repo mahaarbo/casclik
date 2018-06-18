@@ -1392,8 +1392,9 @@ class PseudoInverseController(BaseController):
         future compilation of functions for speed-up and to generate
         all the modes.
         """
-        raise NotImplementedError("Setup problem functions is not done yet.")
-
+        #raise NotImplementedError("Setup problem functions is not done yet.")
+        pass
+    
     def setup_solver(self):
         func_opts = self.options["function_opts"]
         time_var = self.skill_spec.time_var
