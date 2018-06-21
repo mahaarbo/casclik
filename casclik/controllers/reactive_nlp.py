@@ -2,9 +2,9 @@
 """
 
 import casadi as cs
-from constraints import EqualityConstraint, SetConstraint
-from constraints import VelocityEqualityConstraint, VelocitySetConstraint
-from base_controller import BaseController
+from casclik.constraints import EqualityConstraint, SetConstraint
+from casclik.constraints import VelocityEqualityConstraint, VelocitySetConstraint
+from casclik.controllers.base_controller import BaseController
 
 
 class ReactiveNLPController(BaseController):
