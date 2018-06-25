@@ -30,6 +30,10 @@ class SkillSpecification(object):
         virtual_var (cs.MX.sym): Internal virtual variables
         input_var (cs.MX.sym): Input variables, jacobian not calculated
     """
+    _constraints = []
+    _virtual_var = None
+    _input_var = None
+
     def __init__(self, label, time_var,
                  robot_var,
                  robot_vel_var=None,
