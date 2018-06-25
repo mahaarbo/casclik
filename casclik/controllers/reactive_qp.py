@@ -250,10 +250,8 @@ class ReactiveQPController(BaseController):
         """
         H_expr = self.get_cost_expr()
         A_expr, Blb_expr, Bub_expr = self.get_constraints_expr()
-        if "solver_opts" not in self.options:
-            self.options["solver_opts"] = {}
         self.solver = cs.conic("solver",
-                               "qpoases",
+                               self.options["solver_name"],
                                {"h": H_expr.sparsity(),
                                 "a": A_expr.sparsity()},
                                self.options["solver_opts"])
