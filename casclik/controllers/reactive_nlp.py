@@ -51,6 +51,15 @@ class ReactiveNLPController(BaseController):
 
     @cost_expression.setter
     def cost_expression(self, expr):
+        has_r = cs.jacobian(expr, self.skill_spec.robot_var).nnz() > 0
+        has_rvel = cs.jacobian(expr, self.skill_spec.robot_vel_var).nnz() > 0
+        if self.skill_spec._has_virtual:
+            has_v = cs.jacobian(expr, self.skill_spec.virtual_var).nnz() > 0
+            has_vvel = cs.jacobian(expr, self.skill_spec.virtual_vel_var).nnz() > 0
+        if not (has_r or has_rvel or has_v or has_vvel):
+            raise ValueError("Cost must be an expression containing "
+                             + "robot_var, robot_var_vel, virtual_var,"
+                             + " or virtual_vel_var.")
         self._cost_expression = expr
 
     @property
