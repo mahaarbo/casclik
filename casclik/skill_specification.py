@@ -91,6 +91,7 @@ class SkillSpecification(object):
             self.n_virtual_var = var.size()[0]
         else:
             self.n_virtual_var = 0
+        self._check_var_existence()
 
     @property
     def virtual_vel_var(self):
@@ -122,6 +123,7 @@ class SkillSpecification(object):
             self.n_input_var = var.size()[0]
         else:
             self.n_input_var = 0
+        self._check_var_existence()
 
     @property
     def constraints(self):
@@ -143,6 +145,23 @@ class SkillSpecification(object):
             self.slack_var = cs.MX.sym("slack_var", n_slack_var)
         else:
             self.slack_var = None
+        self._check_var_existence()
+
+    def _check_var_existence(self):
+        """Internal function to set _has_virtual, and _has_input.
+        Loops over constraints to see if the derivatives are non-zero."""
+        self._has_virtual = False
+        if self.virtual_var is not None:
+            virtual_var = self.virtual_var
+            for cnstr in self.constraints:
+                if cs.jacobian(cnstr.expression, virtual_var).nnz() > 0:
+                    self._has_virtual = True
+        self._has_input = False
+        if self.input_var is not None:
+            input_var = self.input_var
+            for cnstr in self.constraints:
+                if cs.jacobian(cnstr.expression, input_var).nnz() > 0:
+                    self._has_input = True
 
     def print_constraints(self):
         """Prints information about the constraints in the skill."""
