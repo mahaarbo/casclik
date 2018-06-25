@@ -216,10 +216,10 @@ class ReactiveQPController(BaseController):
                 lb_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
                 ub_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
             elif isinstance(cnstr, SetConstraint):
-                ub_cnstr_expr += cs.mtimes(cnstr.gain,
-                                           cnstr.set_max - cnstr.expression)
                 lb_cnstr_expr += cs.mtimes(cnstr.gain,
                                            cnstr.set_min - cnstr.expression)
+                ub_cnstr_expr += cs.mtimes(cnstr.gain,
+                                           cnstr.set_max - cnstr.expression)
             elif isinstance(cnstr, VelocityEqualityConstraint):
                 lb_cnstr_expr += cnstr.target
                 ub_cnstr_expr += cnstr.target
