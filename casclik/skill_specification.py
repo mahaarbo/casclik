@@ -14,11 +14,9 @@ combined?
 Todo:
     * Add sanity checks to setters of ###_var's
     * Add sanity checks to setter of constraints
-    * Add support for VelocityEqualityConstraint
-    * Add support for VelocitySetConstraint
 """
 import casadi as cs
-from constraints import EqualityConstraint, SetConstraint
+from constraints import EqualityConstraint, SetConstraint, VelocityEqualityConstraint, VelocitySetConstraint
 import sys
 
 
@@ -153,8 +151,12 @@ class SkillSpecification(object):
             sys.stdout.write("#"+str(cnstr_id)+": "+cnstr.label+"\n")
         count_dict = self.count_constraints()
         sys.stdout.write("N constraints: "+str(count_dict["all"])+"\n")
-        sys.stdout.write("N equality: "+str(count_dict["equality"])+"\n")
-        sys.stdout.write("N set: "+str(count_dict["set"])+"\n")
+        sys.stdout.write("N equality:\n")
+        sys.stdout.write("\tPos:"+str(count_dict["equality"]))
+        sys.stdout.write("\tVel:"+str(count_dict["velocity_equality"])+"\n")
+        sys.stdout.write("N set:\n")
+        sys.stdout.write("\tPos:"+str(count_dict["set"]))
+        sys.stdout.write("\tVel:"+str(count_dict["velocity_set"])+"\n")
         sys.stdout.flush()
 
     def count_constraints(self):
@@ -164,6 +166,8 @@ class SkillSpecification(object):
         """
         n_eq = 0
         n_set = 0
+        n_vel_eq = 0
+        n_vel_set = 0
         n_all = len(self.constraints)
         n_hard = 0
         n_soft = 0
@@ -176,8 +180,14 @@ class SkillSpecification(object):
                 n_eq += 1
             elif isinstance(cnstr, SetConstraint):
                 n_set += 1
+            elif isinstance(cnstr, VelocityEqualityConstraint):
+                n_vel_eq += 1
+            elif isinstance(cnstr, VelocitySetConstraint):
+                n_vel_set += 1
         return {"all": n_all,
                 "equality": n_eq,
+                "velocity_equality": n_vel_eq,
                 "set": n_set,
+                "velocity_set": n_vel_set,
                 "hard": n_hard,
                 "soft": n_soft}
