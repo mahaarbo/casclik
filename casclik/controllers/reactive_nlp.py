@@ -163,14 +163,25 @@ class ReactiveNLPController(BaseController):
                 solver_opts["qpsol"] = "qpoases"
             if "qpsol_options" not in solver_opts:
                 solver_opts["qpsol_options"] = {"printLevel": "none"}
+
+        if "function_opts" not in opt:
+            opt["function_opts"] = {}
+        function_opts = opt["function_opts"]
+        if "jit" not in function_opts:
+            function_opts["jit"] = True
+        if "compiler" not in function_opts:
+            function_opts["compiler"] = "shell"
+        if "print_time" not in function_opts:
+            function_opts["print_time"] = False
+        if "jit_options" not in function_opts:
+            function_opts["jit_options"] = {"compiler": "gcc",
+                                            "flags": "-O2"}
         self._options = opt
 
     def get_regularised_cost_expr(self):
         slack_var = self.skill_spec.slack_var
         if slack_var is not None:
-            nslack = self.skill_spec.n_slack_var
-            slack_H = cs.diag(self.slack_var_weights)
-            slack_H += self.weight_shifter*cs.MX.eye(nslack)
+            slack_H = cs.diag(self.weight_shifter + self.slack_var_weights)
             slack_cost = cs.mtimes(cs.mtimes(slack_var.T, slack_H), slack_var)
         else:
             slack_cost = 0.0
