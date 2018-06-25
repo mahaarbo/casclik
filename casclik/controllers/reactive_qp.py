@@ -416,6 +416,34 @@ class ReactiveQPController(BaseController):
                                        self.options["solver_opts"])
         self._has_initial = True
 
+    def solve_initial_problem(self, time_var0, robot_var0,
+                              virtual_var0=None, robot_vel_var0=None):
+        """Solves the initial problem, finding slack and virtual variables."""
+        # Test if we don't need to do anything
+        nvirt = self.skill_spec.n_virtual_var
+        nslack = self.skill_spec.n_slack_var
+        if not self._has_initial:
+            # If no slack, and no virtual, nothing to initializes
+            return None, None
+        if robot_vel_var0 is None:
+            robot_vel_var0 = [0.0]*self.skill_spec.n_robot_var
+        currvals = [time_var0, robot_var0, robot_vel_var0]
+        if nvirt > 0:
+            if virtual_var0 is None:
+                virtual_var0 = [0.0]*nvirt
+            currvals += [virtual_var0]
+        H = self._initial_problem["H"](*currvals)
+        A = self._initial_problem["A"](*currvals)
+        Blb = self._initial_problem["Blb"](*currvals)
+        Bub = self._initial_problem["Bub"](*currvals)
+        res = self.initial_solver(h=H, a=A, lba=Blb, uba=Bub)
+        res_virt = None
+        res_slack = None
+        if nvirt > 0:
+            res_virt = res["x"][:nvirt]
+        if nslack > 0:
+            res_slack = res["x"][nvirt:nvirt+nslack]
+        return res_virt, res_slack
 
     def solve(self, time_var,
               robot_var,
