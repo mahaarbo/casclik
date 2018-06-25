@@ -311,6 +311,7 @@ class ReactiveQPController(BaseController):
         robot_vel_var = self.skill_spec.robot_vel_var
         virtual_var = self.skill_spec.virtual_var
         virtual_vel_var = self.skill_spec.virtual_vel_var
+        input_var = self.skill_spec.input_var
         slack_var = self.skill_spec.slack_var
         nvirt = self.skill_spec.n_virtual_var
         nslack = self.skill_spec.n_slack_var
@@ -389,9 +390,12 @@ class ReactiveQPController(BaseController):
         Bub_expr = cs.vertcat(*ub_cnstr_expr_list)
         currval_vars = [time_var, robot_var, robot_vel_var]
         currval_names = ["time_var", "robot_var", "robot_vel_var"]
-        if nvirt > 0:
+        if self.skill_spec._has_virtual:
             currval_vars += [virtual_var]
             currval_names += ["virtual_var"]
+        if self.skill_spec._has_input:
+            currval_vars += [input_var]
+            currval_names += ["input_var"]
         func_opts = self.options["function_opts"]
         self._initial_problem = {"H": cs.Function("H_initial", currval_vars,
                                                   [H_expr], currval_names,
@@ -417,21 +421,27 @@ class ReactiveQPController(BaseController):
         self._has_initial = True
 
     def solve_initial_problem(self, time_var0, robot_var0,
-                              virtual_var0=None, robot_vel_var0=None):
+                              virtual_var0=None, robot_vel_var0=None,
+                              input_var0=None):
         """Solves the initial problem, finding slack and virtual variables."""
         # Test if we don't need to do anything
         nvirt = self.skill_spec.n_virtual_var
         nslack = self.skill_spec.n_slack_var
+        ninput = self.skill_spec.n_input_var
         if not self._has_initial:
             # If no slack, and no virtual, nothing to initializes
             return None, None
         if robot_vel_var0 is None:
             robot_vel_var0 = [0.0]*self.skill_spec.n_robot_var
         currvals = [time_var0, robot_var0, robot_vel_var0]
-        if nvirt > 0:
+        if self.skill_spec._has_virtual:
             if virtual_var0 is None:
                 virtual_var0 = [0.0]*nvirt
             currvals += [virtual_var0]
+        if self.skill_spec._has_input:
+            if input_var0 is None:
+                input_var0 = [0.0]*ninput
+            currvals += [input_var0]
         H = self._initial_problem["H"](*currvals)
         A = self._initial_problem["A"](*currvals)
         Blb = self._initial_problem["Blb"](*currvals)
