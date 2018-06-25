@@ -174,16 +174,15 @@ class ReactiveQPController(BaseController):
 
         Return:
              H for min_opt_var opt_var^T*H*opt_var"""
-        nrob = self.skill_spec.n_robot_var
         nvirt = self.skill_spec.n_virtual_var
         nslack = self.skill_spec.n_slack_var
-        n_opt_var = nrob + nvirt + nslack
-        H = cs.MX.zeros((n_opt_var, n_opt_var))
-        H[:nrob, :nrob] = self.weight_shifter*cs.diag(self.robot_var_weights)
+        mu = self.weight_shifter
+        opt_weights = [mu*self.robot_var_weights]
         if nvirt > 0:
-            H[nrob:nrob+nvirt, nrob:nrob+nvirt] = self.weight_shifter*cs.diag(self.virtual_var_weights)
+            opt_weights += [mu*self.virtual_var_weights]
         if nslack > 0:
-            H[-nslack:, -nslack:] = self.weight_shifter*cs.MX.eye(nslack) + cs.diag(self.slack_var_weights)
+            opt_weights += [(1+mu)*self.slack_var_weights]
+        H = cs.diag(cs.vertcat(*opt_weights))
         return H
 
     def get_constraints_expr(self):
