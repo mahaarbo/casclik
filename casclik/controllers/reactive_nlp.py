@@ -248,11 +248,11 @@ class ReactiveNLPController(BaseController):
         list_par = [time_var, robot_var]
         list_names = ["time_var", "robot_var"]
         virtual_var = self.skill_spec.virtual_var
-        if virtual_var is not None:
+        if virtual_var is not None and self.skill_spec._has_virtual:
             list_par += [virtual_var]
             list_names += ["virtual_var"]
         input_var = self.skill_spec.input_var
-        if input_var is not None:
+        if input_var is not None and self.skill_spec._has_input:
             list_par += [input_var]
             list_names += ["input_var"]
         nlp_dict = {"x": self._opt_var,
@@ -273,25 +273,27 @@ class ReactiveNLPController(BaseController):
         list_vars = [time_var, robot_var]
         list_names = ["time_var", "robot_var"]
         virtual_var = self.skill_spec.virtual_var
-        if virtual_var is not None:
+        if virtual_var is not None and self.skill_spec._has_virtual:
             list_vars += [virtual_var]
             list_names += ["virtual_var"]
         input_var = self.skill_spec.input_var
-        if input_var is not None:
+        if input_var is not None and self.skill_spec.has_input:
             list_vars += [input_var]
             list_names += ["input_var"]
         # Cost and cnstr have opt_var in them
         cost_func = cs.Function("cost", list_vars+[self._opt_var],
                                 [full_cost_expr], list_names+["opt_var"],
-                                ["cost"])
+                                ["cost"], self.options["function_opts"])
         cnstr_func = cs.Function("cnstr", list_vars+[self._opt_var],
                                  [cnstr_expr], list_names+["opt_var"],
-                                 ["cnstr"])
+                                 ["cnstr"], self.options["function_opts"])
         # lb and ub are for numerics
         lb_cnstr_func = cs.Function("lb_cnstr", list_vars, [lb_cnstr_expr],
-                                    list_names, ["lb_cnstr"])
+                                    list_names, ["lb_cnstr"],
+                                    self.options["function_opts"])
         ub_cnstr_func = cs.Function("ub_cnstr", list_vars, [ub_cnstr_expr],
-                                    list_names, ["ub_cnstr"])
+                                    list_names, ["ub_cnstr"],
+                                    self.options["function_opts"])
         self.cost_func = cost_func
         self.cnstr_func = cnstr_func
         self.lb_cnstr_func = lb_cnstr_func
