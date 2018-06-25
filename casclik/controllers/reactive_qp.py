@@ -448,20 +448,68 @@ class ReactiveQPController(BaseController):
     def solve(self, time_var,
               robot_var,
               virtual_var=None,
-              input_var=None):
+              input_var=None,
+              warmstart_robot_vel_var=None,
+              warmstart_virtual_vel_var=None,
+              warmstart_slack_var=None):
+        """Solve the skill specification.
+        """
+        # Useful sizes
+        nrob = self.skill_spec.n_robot_var
+        nvirt = self.skill_spec.n_virtual_var
+        nslack = self.skill_spec.n_slack_var
+        has_virtual = self.skill_spec._has_virtual
+        has_input = self.skill_spec._has_input
+        # Pack current values
         currvals = [time_var, robot_var]
-        if virtual_var is not None:
+        if virtual_var is not None and has_virtual:
             currvals += [virtual_var]
-        if input_var is not None:
+        if input_var is not None and has_input:
             currvals += [input_var]
+        # Get numerics
         H = self.H_func(*currvals)
         A = self.A_func(*currvals)
         Blb = self.Blb_func(*currvals)
         Bub = self.Bub_func(*currvals)
-        self.res = self.solver(h=H, a=A, lba=Blb, uba=Bub)
-        nrob = self.skill_spec.n_robot_var
-        nvirt = self.skill_spec.n_virtual_var
-        if nvirt > 0:
-            return self.res["x"][:nrob], self.res["x"][nrob:nrob+nvirt]
+        # Do we have warmstart?
+        ws_rob = warmstart_robot_vel_var is not None
+        ws_virt = warmstart_virtual_vel_var is not None and has_virtual
+        ws_slack = warmstart_slack_var is not None and nslack > 0
+        if not (ws_rob or ws_virt or ws_slack):
+            # If no warmstart, then just calculate results
+            self.res = self.solver(h=H, a=A, lba=Blb, uba=Bub)
         else:
-            return self.res["x"][:nrob]
+            # Pack warmstart vector
+            warmstart = []
+            if ws_rob:
+                warmstart += [warmstart_robot_vel_var]
+            else:
+                warmstart += [cs.DM.zeros(nrob)]
+            if ws_virt:
+                warmstart += [warmstart_virtual_vel_var]
+            else:
+                if nvirt > 0:
+                    warmstart += [cs.DM.zeros(nvirt)]
+            if ws_slack:
+                warmstart += [warmstart_slack_var]
+            else:
+                if nslack > 0:
+                    warmstart += [cs.DM.zeros(nslack)]
+            # Calculate results
+            self.res = self.solver(x0=cs.vertcat(*warmstart),
+                                   h=H, a=A, lba=Blb, uba=Bub)
+        res_robot_vel = self.res["x"][:nrob]
+        if nvirt > 0 and has_virtual:
+            res_virtual_vel = self.res["x"][nrob: nrob+nvirt]
+        else:
+            res_virtual_vel = None
+        if nslack > 0:
+            if not has_virtual:
+                # handles user error when user adds virtual_var
+                # but it's not actually in the expressions
+                nvirt = 0
+            res_slack = self.res["x"][nrob+nvirt: nrob+nvirt+nslack]
+        else:
+            res_slack = None
+
+        return res_robot_vel, res_virtual_vel, res_slack
