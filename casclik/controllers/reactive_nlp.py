@@ -70,15 +70,19 @@ class ReactiveNLPController(BaseController):
 
     @slack_var_weights.setter
     def slack_var_weights(self, weights):
-        ns = self.skill_spec.n_slack_var
         if weights is None:
-            weights = [1.]*ns
-        elif isinstance(weights, cs.MX) and weights.size()[0] != ns:
-            raise ValueError("slack_var_weights and slack_var dimensions"
-                             + " do not match.")
-        elif len(weights) != self.skill_spec.n_slack_var:
-            raise ValueError("slack_var_weights and slack_var dimensions"
-                             + " do not match.")
+            weights = cs.vertcat([1.]*self.skill_spec.n_slack_var)
+        elif isinstance(weights, cs.GenericCommonMatrix):
+            if weights.size2 != 1:
+                raise ValueError("slack_var_weights must be a vector.")
+            elif weights.size1 != self.skill_spec.n_slack_var:
+                raise ValueError("slack_var_weights and slack_var dimensions"
+                                 + " do not match.")
+        elif isinstance(weights, (list, cs.np.ndarray)):
+            if len(weights) != self.skill_spec.n_slack_var:
+                raise ValueError("slack_var_weights and slack_var dimensions"
+                                 + " do not match")
+            weights = cs.vertcat(weights)
         self._slack_var_weights = weights
 
     @property
