@@ -181,7 +181,7 @@ class ReactiveQPController(BaseController):
         if nvirt > 0:
             opt_weights += [mu*self.virtual_var_weights]
         if nslack > 0:
-            opt_weights += [(1+mu)*self.slack_var_weights]
+            opt_weights += [mu + self.slack_var_weights]
         H = cs.diag(cs.vertcat(*opt_weights))
         return H
 
