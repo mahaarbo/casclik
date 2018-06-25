@@ -270,19 +270,25 @@ class ReactiveQPController(BaseController):
         list_vars = [time_var, robot_var]
         list_names = ["time_var", "robot_var"]
         virtual_var = self.skill_spec.virtual_var
-        if virtual_var is not None:
+        if virtual_var is not None and self.skill_spec._has_virtual:
             list_vars += [virtual_var]
             list_names += ["virtual_var"]
         input_var = self.skill_spec.input_var
-        if input_var is not None:
+        if input_var is not None and self.skill_spec._has_input:
             list_vars += [input_var]
             list_names += ["input_var"]
-        H_func = cs.Function("H_func", list_vars, [H_expr], list_names, ["H"])
-        A_func = cs.Function("A_func", list_vars, [A_expr], list_names, ["A"])
+        H_func = cs.Function("H_func", list_vars, [H_expr],
+                             list_names, ["H"],
+                             self.options["function_opts"])
+        A_func = cs.Function("A_func", list_vars, [A_expr],
+                             list_names, ["A"],
+                             self.options["function_opts"])
         Blb_func = cs.Function("Blb_expr", list_vars, [Blb_expr],
-                               list_names, ["Blb"])
+                               list_names, ["Blb"],
+                               self.options["function_opts"])
         Bub_func = cs.Function("Bub_expr", list_vars, [Bub_expr],
-                               list_names, ["Bub"])
+                               list_names, ["Bub"],
+                               self.options["function_opts"])
         self.H_func = H_func
         self.A_func = A_func
         self.Blb_func = Blb_func
