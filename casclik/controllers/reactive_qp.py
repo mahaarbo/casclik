@@ -294,47 +294,128 @@ class ReactiveQPController(BaseController):
         self.Blb_func = Blb_func
         self.Bub_func = Bub_func
 
-    def solve_initial_problem(self, time_var0, robot_var0,
-                              robot_vel_var0=None, virtual_var0=None):
-        """Solves the initial problem, finding slack and virtual variables."""
+    def setup_initial_problem_solver(self):
+        """Sets up the initial problem solver, for finding slack and virtual
+        variables before the solver should run."""
         # Test if we don't need to do anything
-        shortcut = self.skill_spec.virtual_var is None
+        shortcut = self.skill_spec._has_virtual is None
         shortcut = shortcut and self.skill_spec.slack_var is None
         if shortcut:
             # If no slack, and no virtual, nothing to initializes
+            self._has_initial = False
             return None
-        # Get expressions
-        H_expr = self.get_cost_expr()
-        A_expr, Blb_expr, Bub_expr = self.get_constraints_expr()
+
         # Prepare variables
         time_var = self.skill_spec.time_var
         robot_var = self.skill_spec.robot_var
         robot_vel_var = self.skill_spec.robot_vel_var
-        list_vars = [time_var, robot_var, robot_vel_var]
-        list_names = ["time_var", "robot_var", "robot_vel_var"]
         virtual_var = self.skill_spec.virtual_var
         virtual_vel_var = self.skill_spec.virtual_vel_var
-        if virtual_var is not None:
-            opt_var = [virtual_vel_var]
-            list_vars += [virtual_var]
-            list_names += ["virtual_var"]
         slack_var = self.skill_spec.slack_var
-        n_slack = self.skill_spec.n_slack_var
-        if slack_var is not None:
-            opt_list += [slack_var]
-        # Setup the partial expressions
-        H_func = cs.Function("H_func", list_vars
-        )
-        A_func = cs.Function("A_func")
-        Blb_func = cs.Function("Blb_func")
-        Bub_func = cs.Function("Bub_func")
-        # Setup values
-        if robot_vel_var0 is None:
-            robot_vel_var0 = cs.MX.zeros(self.n_robot_var)
-        const_list = [time_var0, robot_var0, robot_vel_var0]
-        # Solve
+        nvirt = self.skill_spec.n_virtual_var
+        nslack = self.skill_spec.n_slack_var
+        mu = self.weight_shifter
 
-        raise NotImplementedError("To be done")
+        # Prepare cost expression
+        opt_var = []
+        opt_weights = []
+        if nvirt > 0:
+            opt_var += [virtual_vel_var]
+            opt_weights += [mu*self.virtual_var_weights]
+        if nslack > 0:
+            opt_var += [slack_var]
+            opt_weights += [(1+mu)*self.slack_var_weights]
+        H_expr = cs.diag(cs.vertcat(*opt_weights))
+
+        # Prepare constraints expressions
+        cnstr_expr_list = []
+        lb_cnstr_expr_list = []
+        ub_cnstr_expr_list = []
+        slack_ind = 0
+        virt_ind = 0
+        for cnstr in self.skill_spec.constraints:
+            found_virt = False
+            found_slack = False
+            expr_size = cnstr.expression.size()
+            # Look for virtual variables
+            if nvirt > 0:
+                J_virt = cs.jacobian(cnstr.expression, virtual_var)
+                if J_virt.nnz() > 0:  # if it has non-zero elements
+                    cnstr_expr = J_virt
+                    found_virt = True
+                    virt_ind += 1
+                else:
+                    cnstr_expr = cs.DM.zeros((expr_size[0], nvirt))
+            # Setup bounds/functions for numerics
+            rob_der = cnstr.jtimes(robot_var, robot_vel_var)
+            lb_cnstr_expr = -cnstr.jacobian(time_var) - rob_der
+            ub_cnstr_expr = -cnstr.jacobian(time_var) - rob_der
+            if isinstance(cnstr, EqualityConstraint):
+                lb_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
+                ub_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
+            elif isinstance(cnstr, SetConstraint):
+                lb_cnstr_expr += cs.mtimes(cnstr.gain,
+                                           cnstr.set_min - cnstr.expression)
+                ub_cnstr_expr += cs.mtimes(cnstr.gain,
+                                           cnstr.set_max - cnstr.expression)
+            elif isinstance(cnstr.VelocityEqualityConstraint):
+                lb_cnstr_expr += cnstr.target
+                ub_cnstr_expr += cnstr.target
+            elif isinstance(cnstr.VelocitySetConstraint):
+                lb_cnstr_expr += cnstr.set_min
+                ub_cnstr_expr += cnstr.set_max
+            # Look for slack variables
+            if nslack > 0:
+                slack_mat = cs.DM.zeros((expr_size[0], nslack))
+                if cnstr.constraint_type == "soft":
+                    slack_mat[:, slack_ind:slack_ind + expr_size[0]] = -cs.DM.eye(expr_size[0])
+                    slack_ind += expr_size[0]
+                    found_slack = True
+                if nvirt > 0:
+                    cnstr_expr = cs.horzcat(cnstr_expr, slack_mat)
+                else:
+                    cnstr_expr = slack_mat
+            # Only care about this expression if it's actually relevant
+            if (found_virt or found_slack):
+                cnstr_expr_list += [cnstr_expr]
+                lb_cnstr_expr_list += [lb_cnstr_expr]
+                ub_cnstr_expr_list += [ub_cnstr_expr]
+        if slack_ind == 0 and virt_ind == 0:
+            # Didn't find any of them.. return
+            self._has_initial = False
+            return None
+        A_expr = cs.vertcat(*cnstr_expr_list)
+        Blb_expr = cs.vertcat(*lb_cnstr_expr_list)
+        Bub_expr = cs.vertcat(*ub_cnstr_expr_list)
+        currval_vars = [time_var, robot_var, robot_vel_var]
+        currval_names = ["time_var", "robot_var", "robot_vel_var"]
+        if nvirt > 0:
+            currval_vars += [virtual_var]
+            currval_names += ["virtual_var"]
+        func_opts = self.options["function_opts"]
+        self._initial_problem = {"H": cs.Function("H_initial", currval_vars,
+                                                  [H_expr], currval_names,
+                                                  ["H"], func_opts),
+                                 "A": cs.Function("A_initial", currval_vars,
+                                                  [A_expr], currval_names,
+                                                  ["A"], func_opts),
+                                 "Blb": cs.Function("Blb_initial",
+                                                    currval_vars,
+                                                    [Blb_expr],
+                                                    currval_names,
+                                                    ["Blb"], func_opts),
+                                 "Bub": cs.Function("Bub_initial",
+                                                    currval_vars,
+                                                    [Bub_expr],
+                                                    currval_names,
+                                                    ["Bub"], func_opts)}
+        self.initial_solver = cs.conic("solver",
+                                       self.options["solver_name"],
+                                       {"h": H_expr.sparsity(),
+                                        "a": A_expr.sparsity()},
+                                       self.options["solver_opts"])
+        self._has_initial = True
+
 
     def solve(self, time_var,
               robot_var,
