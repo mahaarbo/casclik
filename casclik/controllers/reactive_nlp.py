@@ -299,9 +299,160 @@ class ReactiveNLPController(BaseController):
         self.lb_cnstr_func = lb_cnstr_func
         self.ub_cnstr_func = ub_cnstr_func
 
-    def solve_initial_problem(self, robot_var0):
+    def setup_initial_problem_solver(self):
+        """Sets up the initial problem solver, for finding slack and virtual variables
+        before the solver solver should run."""
+        # Test if we don't need to do anything
+        shortcut = self.skill_spec._has_virtual is None
+        shortcut = shortcut and self.skill_spec.slack_var is None
+        if shortcut:
+            # If no slack, and no virtual, nothing to initialize
+            self._has_initial = False
+            return None
+
+        # Prepare variables
+        time_var = self.skill_spec.time_var
+        robot_var = self.skill_spec.robot_var
+        robot_vel_var = self.skill_spec.robot_vel_var
+        virtual_var = self.skill_spec.virtual_var
+        virtual_vel_var = self.skill_spec.virtual_vel_var
+        input_var = self.skill_spec.input_var
+        slack_var = self.skill_spec.slack_var
+        nvirt = self.skill_spec.n_virtual_var
+        nslack = self.skill_spec.n_slack_var
+
+        # Optimization variable and parameters to opt.prob.
+        list_par = [time_var, robot_var, robot_vel_var]
+        list_names = ["time_var", "robot_var", "robot_vel_var"]
+        opt_var = []
+        if self.skill_spec._has_virtual:
+            opt_var += [virtual_vel_var]
+            list_par += [virtual_var]
+            list_names += ["virtual_var"]
+        if nvirt > 0:
+            opt_var += [slack_var]
+        if self.skill_spec._has_input:
+            list_par += [input_var]
+            list_names += ["input_var"]
+
+        # Prepare cost expression
+        cost_expr = self.get_regularised_cost_expr()
+
+        # Prepare constraints expressions
+        cnstr_expr_list = []
+        lb_cnstr_expr_list = []
+        ub_cnstr_expr_list = []
+        slack_ind = 0
+        virt_ind = 0
+        for cnstr in self.skill_spec.constraints:
+            cnstr_expr = 0.0
+            found_virt = False
+            found_slack = False
+            expr_size = cnstr.expression.size()
+            # Look for virtual variables in expr
+            if nvirt > 0:
+                J_virt = cnstr.jtimes(virtual_var, virtual_vel_var)
+                if J_virt.nnz() > 0:
+                    cnstr_expr += J_virt
+                    found_virt = True
+                    virt_ind += 1
+            # Setup bounds/functions for numerics
+            rob_der = cnstr.jtimes(robot_var, robot_vel_var)
+            lb_cnstr_expr = -cnstr.jacobian(time_var) - rob_der
+            ub_cnstr_expr = -cnstr.jacobian(time_var) - rob_der
+            if isinstance(cnstr, EqualityConstraint):
+                lb_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
+                ub_cnstr_expr += -cs.mtimes(cnstr.gain, cnstr.expression)
+            elif isinstance(cnstr, SetConstraint):
+                ub_cnstr_expr += cs.mtimes(cnstr.gain,
+                                           cnstr.set_max - cnstr.expression)
+                lb_cnstr_expr += cs.mtimes(cnstr.gain,
+                                           cnstr.set_min - cnstr.expression)
+            elif isinstance(cnstr, VelocityEqualityConstraint):
+                ub_cnstr_expr += cnstr.target
+                lb_cnstr_expr += cnstr.target
+            elif isinstance(cnstr, VelocitySetConstraint):
+                ub_cnstr_expr += cnstr.set_max
+                lb_cnstr_expr += cnstr.set_min
+            if nslack > 0:
+                if cnstr.constraint_type == "soft":
+                    cnstr_expr += -slack_var[slack_ind:slack_ind + expr_size[0]]
+                    slack_ind += expr_size[0]
+                    found_slack = True
+            # Only care about this constraint if it's actually relevant
+            if (found_virt or found_slack):
+                cnstr_expr_list += [cnstr_expr]
+                lb_cnstr_expr_list += [lb_cnstr_expr]
+                ub_cnstr_expr_list += [ub_cnstr_expr]
+        if slack_ind == 0 and  virt_ind == 0:
+            # Didn't find any of them.. return
+            self._has_initial = False
+            return None
+        cnstr_expr_full = cs.vertcat(*cnstr_expr_list)
+        lb_cnstr_expr_full = cs.vertcat(*lb_cnstr_expr_list)
+        ub_cnstr_expr_full = cs.vertcat(*ub_cnstr_expr_list)
+        lb_cnstr_func = cs.Function("lb_cnstr", list_par,
+                                    [lb_cnstr_expr_full],
+                                    list_names, ["lb_cnstr"],
+                                    self.options["function_opts"])
+        ub_cnstr_func = cs.Function("ub_cnstr", list_par,
+                                    [ub_cnstr_expr_full],
+                                    list_names, ["ub_cnstr"],
+                                    self.options["function_opts"])
+        self._initial_problem = {
+            "nlp": {
+                "x": cs.vertcat(*opt_var),
+                "p": cs.vertcat(*list_par),
+                "f": cost_expr,
+                "g": cnstr_expr_full
+            },
+            "num": {
+                "lb": lb_cnstr_func,
+                "ub": ub_cnstr_func
+            }
+        }
+        self.initial_solver = cs.nlpsol("solver",
+                                        self.options["solver_name"],
+                                        self._initial_problem["nlp"],
+                                        self.options["solver_opts"])
+        self._has_initial = True
+
+    def solve_initial_problem(self,  time_var0, robot_var0,
+                              virtual_var0=None, robot_vel_var0=None,
+                              input_var0=None):
         """Solves the initial problem, finding slack and virtual variables."""
-        raise NotImplementedError("To be done")
+        # Test if we don't need to do anything
+        nvirt = self.skill_spec.n_virtual_var
+        if not self.skill_spec._has_virtual:
+            nvirt = 0
+        nslack = self.skill_spec.n_slack_var
+        ninput = self.skill_spec.n_input_var
+        if not self._has_initial:
+            # if no slack, and no virtual, nothing to initialize
+            return None, None
+        if robot_vel_var0 is None:
+            robot_vel_var0 = [0.0]*self.skill_spec.n_robot_var
+        currvals = [time_var0, robot_var0, robot_vel_var0]
+        if self.skill_spec._has_virtual:
+            if virtual_var0 is None:
+                virtual_var0 = [0.0]*nvirt
+            currvals += [virtual_var0]
+        if self.skill_spec._has_input:
+            if input_var0 is None:
+                input_var0 = [0.0]*ninput
+            currvals += [input_var0]
+        lb_num = self._initial_problem["num"]["lb"](*currvals)
+        ub_num = self._initial_problem["num"]["ub"](*currvals)
+        res = self.initial_solver(lbg=lb_num,
+                                  ubg=ub_num,
+                                  p=cs.vertcat(*currvals))
+        res_virt = None
+        res_slack = None
+        if nvirt > 0:
+            res_virt = res["x"][:nvirt]
+        if nslack > 0:
+            res_slack = res["x"][nvirt:nvirt+nslack]
+        return res_virt, res_slack
 
     def solve(self, time_var, robot_var,
               virtual_var=None,
