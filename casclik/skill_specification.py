@@ -14,11 +14,9 @@ combined?
 Todo:
     * Add sanity checks to setters of ###_var's
     * Add sanity checks to setter of constraints
-    * Add support for VelocityEqualityConstraint
-    * Add support for VelocitySetConstraint
 """
 import casadi as cs
-from constraints import EqualityConstraint, SetConstraint
+from constraints import EqualityConstraint, SetConstraint, VelocityEqualityConstraint, VelocitySetConstraint
 import sys
 
 
@@ -32,6 +30,10 @@ class SkillSpecification(object):
         virtual_var (cs.MX.sym): Internal virtual variables
         input_var (cs.MX.sym): Input variables, jacobian not calculated
     """
+    _constraints = []
+    _virtual_var = None
+    _input_var = None
+
     def __init__(self, label, time_var,
                  robot_var,
                  robot_vel_var=None,
@@ -93,6 +95,7 @@ class SkillSpecification(object):
             self.n_virtual_var = var.size()[0]
         else:
             self.n_virtual_var = 0
+        self._check_var_existence()
 
     @property
     def virtual_vel_var(self):
@@ -124,6 +127,7 @@ class SkillSpecification(object):
             self.n_input_var = var.size()[0]
         else:
             self.n_input_var = 0
+        self._check_var_existence()
 
     @property
     def constraints(self):
@@ -145,6 +149,23 @@ class SkillSpecification(object):
             self.slack_var = cs.MX.sym("slack_var", n_slack_var)
         else:
             self.slack_var = None
+        self._check_var_existence()
+
+    def _check_var_existence(self):
+        """Internal function to set _has_virtual, and _has_input.
+        Loops over constraints to see if the derivatives are non-zero."""
+        self._has_virtual = False
+        if self.virtual_var is not None:
+            virtual_var = self.virtual_var
+            for cnstr in self.constraints:
+                if cs.jacobian(cnstr.expression, virtual_var).nnz() > 0:
+                    self._has_virtual = True
+        self._has_input = False
+        if self.input_var is not None:
+            input_var = self.input_var
+            for cnstr in self.constraints:
+                if cs.jacobian(cnstr.expression, input_var).nnz() > 0:
+                    self._has_input = True
 
     def print_constraints(self):
         """Prints information about the constraints in the skill."""
@@ -153,8 +174,12 @@ class SkillSpecification(object):
             sys.stdout.write("#"+str(cnstr_id)+": "+cnstr.label+"\n")
         count_dict = self.count_constraints()
         sys.stdout.write("N constraints: "+str(count_dict["all"])+"\n")
-        sys.stdout.write("N equality: "+str(count_dict["equality"])+"\n")
-        sys.stdout.write("N set: "+str(count_dict["set"])+"\n")
+        sys.stdout.write("N equality:\n")
+        sys.stdout.write("\tPos:"+str(count_dict["equality"]))
+        sys.stdout.write("\tVel:"+str(count_dict["velocity_equality"])+"\n")
+        sys.stdout.write("N set:\n")
+        sys.stdout.write("\tPos:"+str(count_dict["set"]))
+        sys.stdout.write("\tVel:"+str(count_dict["velocity_set"])+"\n")
         sys.stdout.flush()
 
     def count_constraints(self):
@@ -164,6 +189,8 @@ class SkillSpecification(object):
         """
         n_eq = 0
         n_set = 0
+        n_vel_eq = 0
+        n_vel_set = 0
         n_all = len(self.constraints)
         n_hard = 0
         n_soft = 0
@@ -176,8 +203,14 @@ class SkillSpecification(object):
                 n_eq += 1
             elif isinstance(cnstr, SetConstraint):
                 n_set += 1
+            elif isinstance(cnstr, VelocityEqualityConstraint):
+                n_vel_eq += 1
+            elif isinstance(cnstr, VelocitySetConstraint):
+                n_vel_set += 1
         return {"all": n_all,
                 "equality": n_eq,
+                "velocity_equality": n_vel_eq,
                 "set": n_set,
+                "velocity_set": n_vel_set,
                 "hard": n_hard,
                 "soft": n_soft}
