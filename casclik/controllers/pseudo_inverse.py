@@ -178,30 +178,33 @@ class PseudoInverseController(BaseController):
                 # For set constraints, things are a little more complicated
                 # The modes are like a binary tree, so we have to split the
                 # list of modes to make that fit, and only affect correct ones
-                # Find affected modes:
-                amodes = []
+                # Find indices of affected modes:
+                amode_idxs = []
                 mode_count += 1
                 section_size = 2**(n_sets - mode_count)
                 sect_ind = 0
                 for i in xrange(2**mode_count):
                     # Every even section stays the same
-                    if i % 2 == 0:
-                        in_tc_func = self.get_in_tangent_cone_function(cnstr)
-                        modes[i]["in_tangent_cone_func_list"] += [in_tc_func]
                     # Every odd section is affected by null-space
-                    elif i % 2 == 1:
-                        amodes += modes[sect_ind:sect_ind+section_size]
+                    if i % 2 == 1:
+                        amode_idxs += range(sect_ind, sect_ind+section_size)
                     sect_ind += section_size
-                # Then loop over those to modify
-                for mode in amodes:
-                    mode["J_expr_list"] += [Ji]
-                    mode["Jt_expr_list"] += [Jti]
-                    J0i = cs.vertcat(*mode["J_expr_list"])
-                    N0i = cs.MX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
-                    mode["N0i_expr_list"] += [N0i]
-                    des_dconstri = cs.MX.zeros(cnstr.expression.size()[0])
-                    mode["des_dconstr_expr_list"] += [des_dconstri]
-
+                # The affected modes are the modes where the constraint is
+                # active. Then loop over the modes.
+                # If a mode is affected, we modify the expressions
+                # If it isn't affected, we give it the in_tc_func
+                for mode_idx, mode in enumerate(modes):
+                    if mode_idx in amode_idxs:
+                        mode["J_expr_list"] += [Ji]
+                        mode["Jt_expr_list"] += [Jti]
+                        J0i = cs.vertcat(*mode["J_expr_list"])
+                        N0i = cs.MX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
+                        mode["N0i_expr_list"] += [N0i]
+                        des_dconstri = cs.MX.zeros(cnstr.expression.size()[0])
+                        mode["des_dconstr_expr_list"] += [des_dconstri]
+                    else:
+                        in_tc_func = self.get_in_tangent_cone_function(cnstr)
+                        mode["in_tangent_cone_func_list"] += [in_tc_func]
             elif isinstance(cnstr, VelocityEqualityConstraint):
                 # Velocity Equality constraints: des_dconstri is just set_min
                 for mode in modes:
