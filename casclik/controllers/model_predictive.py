@@ -6,6 +6,7 @@ from casclik.constraints import EqualityConstraint, SetConstraint
 from casclik.constraints import VelocityEqualityConstraint, VelocitySetConstraint
 from casclik.controllers.base_controller import BaseController
 
+
 class ModelPredictiveController(BaseController):
     """Model Predictive controller.
 
