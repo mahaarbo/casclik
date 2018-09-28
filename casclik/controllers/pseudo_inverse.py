@@ -94,6 +94,7 @@ class PseudoInverseController(BaseController):
         list_names = ["time_var", "robot_var"]
         robot_vel_var = self.skill_spec.robot_vel_var
         opt_var = [robot_vel_var]
+        opt_var_names = ["robot_vel_var"]
         virtual_var = self.skill_spec.virtual_var
         virtual_vel_var = self.skill_spec.virtual_vel_var
         input_var = self.skill_spec.input_var
@@ -106,6 +107,7 @@ class PseudoInverseController(BaseController):
             list_vars += [virtual_var]
             list_names += ["virtual_var"]
             opt_var += [virtual_vel_var]
+            opt_var_names += ["virtual_vel_var"]
             dexpr += cs.jtimes(expr, virtual_var, virtual_vel_var)
         if input_var is not None:
             list_vars += [input_var]
@@ -137,7 +139,7 @@ class PseudoInverseController(BaseController):
         return cs.Function("in_tc_"+cnstr.label,
                            list_vars+opt_var,
                            [in_tc],
-                           list_names+["opt_var"],
+                           list_names+opt_var_names,
                            ["in_tc_"+cnstr.label])
 
     def get_problem_expressions(self):
@@ -289,7 +291,9 @@ class PseudoInverseController(BaseController):
               virtual_var=None,
               input_var=None):
         currvals = [time_var, robot_var]
-        if virtual_var is not None:
+        nrob = self.skill_spec.n_robot_var
+        nvirt = self.skill_spec.n_virtual_var
+        if virtual_var is not None and nvirt > 0:
             currvals += [virtual_var]
         if input_var is not None:
             currvals += [input_var]
@@ -298,16 +302,19 @@ class PseudoInverseController(BaseController):
             # The first one with all okay is the one we return
             ALLOKAY = True
             dcntrl_var = mode["fcntrl_var_des"](*currvals)
+            dcntrl_rob = dcntrl_var[:nrob]
+            suggested = currvals + [dcntrl_rob]
+            if nvirt > 0:
+                dcntrl_virt = dcntrl_var[nrob:]
+                suggested += [dcntrl_virt]
             for in_tangent_cone in mode["in_tangent_cone_func_list"]:
-                if not in_tangent_cone(*(currvals+[dcntrl_var])):
+                if not in_tangent_cone(*(suggested)):
                     ALLOKAY = False
                     break
             if ALLOKAY:
                 self.current_mode = i
                 break
         # Split robot_vel_var and virtual_vel_var
-        nrob = self.skill_spec.n_robot_var
-        nvirt = self.skill_spec.n_virtual_var
         if nvirt > 0:
             return dcntrl_var[:nrob], dcntrl_var[nrob:nrob+nvirt]
         return dcntrl_var

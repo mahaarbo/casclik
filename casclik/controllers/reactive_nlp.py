@@ -384,7 +384,7 @@ class ReactiveNLPController(BaseController):
                 cnstr_expr_list += [cnstr_expr]
                 lb_cnstr_expr_list += [lb_cnstr_expr]
                 ub_cnstr_expr_list += [ub_cnstr_expr]
-        if slack_ind == 0 and  virt_ind == 0:
+        if slack_ind == 0 and virt_ind == 0:
             # Didn't find any of them.. return
             self._has_initial = False
             return None
