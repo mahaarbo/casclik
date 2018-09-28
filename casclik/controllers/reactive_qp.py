@@ -66,7 +66,7 @@ class ReactiveQPController(BaseController):
     def robot_var_weights(self, weights):
         if weights is None:
             weights = cs.vertcat([1.]*self.skill_spec.n_robot_var)
-        elif isinstance(weights, cs.GenericCommonMatrix):
+        elif isinstance(weights, cs.GenericMatrixCommon):
             if weights.size2 != 1:
                 raise ValueError("robot_var_weights must be a vector.")
             elif weights.size1 != self.skill_spec.n_robot_var:
@@ -90,7 +90,7 @@ class ReactiveQPController(BaseController):
     def virtual_var_weights(self, weights):
         if weights is None:
             weights = cs.vertcat([1.]*self.skill_spec.n_virtual_var)
-        elif isinstance(weights, cs.GenericCommonMatrix):
+        elif isinstance(weights, cs.GenericMatrixCommon):
             if weights.size2 != 1:
                 raise ValueError("virtual_var_weights must be a vector.")
             elif weights.size1 != self.skill_spec.n_virtual_var:
@@ -114,7 +114,7 @@ class ReactiveQPController(BaseController):
     def slack_var_weights(self, weights):
         if weights is None:
             weights = cs.vertcat([1.]*self.skill_spec.n_slack_var)
-        elif isinstance(weights, cs.GenericCommonMatrix):
+        elif isinstance(weights, cs.GenericMatrixCommon):
             if weights.size2 != 1:
                 raise ValueError("slack_var_weights must be a vector.")
             elif weights.size1 != self.skill_spec.n_slack_var:
