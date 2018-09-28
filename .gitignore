@@ -99,3 +99,7 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# Casadi compiled things in the examples
+/examples/*.c
+/examples/*.o
