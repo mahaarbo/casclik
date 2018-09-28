@@ -220,13 +220,13 @@ class PseudoInverseController(BaseController):
                     if self.options["feedforward"]:
                         des_dconstri += -Jti
                     mode["des_dconstr_expr_list"] += [des_dconstri]
-                        
             else:
                 raise NotImplementedError("PseudoInverseController only knows"
                                           + " of EqualityConstraint, "
                                           + "SetConstraint, and Velocity"
-                                          + "EqualityConstraint. You gave it "
-                                          + str(cnstr.label) + "of type:"
+                                          + "EqualityConstraint. The "
+                                          + "constraint named "
+                                          + str(cnstr.label) + " of type: "
                                           + str(type(cnstr)) + ".")
         return modes
 
