@@ -285,8 +285,14 @@ class VelocityEqualityConstraint(BaseConstraint):
     can be hard or soft, have different priorities but they set a certain
     expression derivative up to be an equality constraint.
     For joint speed resolved controllers, the gain serves no purpose.
-    WARNING: This doesn't run _check_sizes.
 
+    In the optimization controllers this is handled as:
+    dexpr/dq*q_der + dexpr/dx*x_der = target - dexpr/dt
+
+    In the pseudoinverse controllers, the :
+    [q_der', x_der']' = pinv([dexpr/dq, dexpr/dx)*(target - dexpr/dt)
+
+    WARNING: This doesn't run _check_sizes.
     Args:
         label (str): Name of the constraint
         expression (cs.MX): expression of the constraint
