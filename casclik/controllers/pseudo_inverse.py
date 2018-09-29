@@ -315,6 +315,11 @@ class PseudoInverseController(BaseController):
                 self.current_mode = i
                 break
         # Split robot_vel_var and virtual_vel_var
+        res_robot_vel = dcntrl_var[:nrob]
         if nvirt > 0:
-            return dcntrl_var[:nrob], dcntrl_var[nrob:nrob+nvirt]
-        return dcntrl_var
+            res_virtual_vel = dcntrl_var[nrob:nrob+nvirt]
+        else:
+            res_virtual_vel = None
+        # Same return pattern as everything else
+        # But there are no slack variables (as of yet)
+        return res_robot_vel, res_virtual_vel, None
