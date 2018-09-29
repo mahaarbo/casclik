@@ -410,10 +410,12 @@ class ModelPredictiveController(BaseController):
                 # we have to split it into two.
                 cnstr_expr2 = cnstr_expr
                 # cnstr_expr is lower, cnstr_expr2 is upper
+                set_min = max(cnstr.set_min, -1e20)  # Avoid infs
+                set_max = min(cnstr.set_max, 1e20)  # Avoid infs
                 cnstr_expr += - cs.mtimes(cnstr.gain,
-                                          cnstr.set_min - cnstr.expression)
+                                          set_min - cnstr.expression)
                 cnstr_expr2 += - cs.mtimes(cnstr.gain,
-                                           cnstr.set_max - cnstr.expression)
+                                           set_max - cnstr.expression)
                 lb_cnstr_expr = [0.0]*expr_size[0]
                 ub_cnstr_expr = [cs.inf]*expr_size[0]
                 lb_cnstr_expr2 = [-cs.inf]*expr_size[0]
