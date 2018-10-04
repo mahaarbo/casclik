@@ -55,8 +55,7 @@ class PseudoInverseController(BaseController):
         if "print_time" not in function_opts:
             function_opts["print_time"] = False
         if "jit_options" not in function_opts:
-            function_opts["jit_options"] = {"compiler": "gcc",
-                                            "flags": "-O2"}
+            function_opts["jit_options"] = {"flags": "-O2"}
         self._options = opt
 
     @property

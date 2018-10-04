@@ -176,8 +176,7 @@ class ModelPredictiveController(BaseController):
             if "jit" not in solver_opts:
                 solver_opts["jit"] = True
             if "jit_options" not in solver_opts:
-                solver_opts["jit_options"] = {#"compiler": "gcc",
-                                              "flags": "-Ofast"}
+                solver_opts["jit_options"] = {"flags": "-Ofast"}
 
         if opt["solver_name"] == "scpgen":
             if "print_header" not in solver_opts:
@@ -203,8 +202,7 @@ class ModelPredictiveController(BaseController):
         if "print_time" not in function_opts:
             function_opts["print_time"] = False
         if "jit_options" not in function_opts:
-            function_opts["jit_options"] = {"compiler": "gcc",
-                                            "flags": "-O2"}
+            function_opts["jit_options"] = {"flags": "-O2"}
         self._options = opt
 
     def get_cost_integrand_function(self):
