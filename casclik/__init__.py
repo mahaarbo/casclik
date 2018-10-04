@@ -1,3 +1,3 @@
-from constraints import *
-from skill_specification import SkillSpecification
-from controllers import *
+from casclik.constraints import *
+from casclik.skill_specification import SkillSpecification
+from casclik.controllers import *
