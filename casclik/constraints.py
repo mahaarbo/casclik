@@ -223,7 +223,9 @@ class SetConstraint(BaseConstraint):
                 rmin = True
         elif isinstance(self.set_min, cs.np.ndarray):
             szi = self.set_min.shape
-            if szi[0] == expr_size[0] and szi[1] == 1:
+            if len(szi) == 1 and szi[0] == expr_size[0]:
+                rmin = True
+            elif szi[0] == expr_size[0] and szi[1] == 1:
                 rmin = True
         else:
             raise TypeError("Unknown set_min type. Supported are float,"
@@ -245,8 +247,11 @@ class SetConstraint(BaseConstraint):
                 rmax = True
         elif isinstance(self.set_max, cs.np.ndarray):
             sza = self.set_max.shape
-            if sza[0] == expr_size[0] and szi == 1:
+            if len(sza) == 1 and sza[0] == expr_size[0]:
                 rmax = True
+            elif sza[0] == expr_size[0] and szi == 1:
+                rmax = True
+
         else:
             raise TypeError("Unknown set_max type. supported are float,"
                             + " MX, DM, and numpy.ndarray")
