@@ -410,8 +410,21 @@ class ModelPredictiveController(BaseController):
                 # we have to split it into two.
                 cnstr_expr2 = cnstr_expr
                 # cnstr_expr is lower, cnstr_expr2 is upper
-                set_min = max(cnstr.set_min, -1e20)  # Avoid infs
-                set_max = min(cnstr.set_max, 1e20)  # Avoid infs
+
+                # Avoid infs in evaluated constraint expressions
+                if isinstance(cnstr.set_min, (list, cs.np.ndarray)):
+                    set_min = cnstr.set_min
+                    for idx, item in enumerate(cnstr.set_min):
+                        set_min[idx] = max(cnstr.set_min[idx], -1e20)
+                elif isinstance(cnstr.set_min, (int, float)):
+                    set_min = max(cnstr.set_min, -1e20)
+                if isinstance(cnstr.set_max, (list, cs.np.ndarray)):
+                    set_max = cnstr.set_max
+                    for idx, item in enumerate(cnstr.set_max):
+                        set_max[idx] = min(cnstr.set_max[idx], 1e20)
+                elif isinstance(cnstr.set_max, (int, float)):
+                    set_max = min(cnstr.set_max, 1e20)
+
                 cnstr_expr += - cs.mtimes(cnstr.gain,
                                           set_min - cnstr.expression)
                 cnstr_expr2 += - cs.mtimes(cnstr.gain,
