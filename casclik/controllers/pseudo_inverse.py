@@ -135,7 +135,7 @@ class PseudoInverseController(BaseController):
             if_low_inc,
             True
         )
-        return cs.Function("in_tc_"+cnstr.label,
+        return cs.Function("in_tc_"+cnstr.label.replace(" ","_"),
                            list_vars+opt_var,
                            [in_tc],
                            list_names+opt_var_names,
