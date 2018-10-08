@@ -45,6 +45,8 @@ class PseudoInverseController(BaseController):
             opt = {}
         if "feedforward" not in opt:
             opt["feedforward"] = True
+        if "multidim_sets" not in opt:
+            opt["multidim_sets"] = False
         if "function_opts" not in opt:
             opt["function_opts"] = {}
         function_opts = opt["function_opts"]
@@ -135,7 +137,58 @@ class PseudoInverseController(BaseController):
             if_low_inc,
             True
         )
-        return cs.Function("in_tc_"+cnstr.label.replace(" ","_"),
+        return cs.Function("in_tc_"+cnstr.label.replace(" ", "_"),
+                           list_vars+opt_var,
+                           [in_tc],
+                           list_names+opt_var_names,
+                           ["in_tc_"+cnstr.label])
+
+    def get_in_tangent_cone_function_multidim(self, cnstr):
+        """Returns a casadi function for the SetConstraint instance when the
+        SetConstraint is multidimensional."""
+        if not isinstance(cnstr, SetConstraint):
+            raise TypeError("in_tangent_cone is only available for"
+                            + " SetConstraint")
+        time_var = self.skill_spec.time_var
+        robot_var = self.skill_spec.robot_var
+        list_vars = [time_var, robot_var]
+        list_names = ["time_var", "robot_var"]
+        robot_vel_var = self.skill_spec.robot_vel_var
+        opt_var = [robot_vel_var]
+        opt_var_names = ["robot_vel_var"]
+        virtual_var = self.skill_spec.virtual_var
+        virtual_vel_var = self.skill_spec.virtual_vel_var
+        input_var = self.skill_spec.input_var
+        expr = cnstr.expression
+        set_min = cnstr.set_min
+        set_max = cnstr.set_max
+        dexpr = cs.jacobian(expr, time_var)
+        dexpr += cs.jtimes(expr, robot_var, robot_vel_var)
+        if virtual_var is not None:
+            list_vars += [virtual_var]
+            list_names += ["virtual_var"]
+            opt_var += [virtual_vel_var]
+            opt_var_names += ["virtual_vel_var"]
+            dexpr += cs.jtimes(expr, virtual_var, virtual_vel_var)
+        if input_var is not None:
+            list_vars += [input_var]
+            list_vars += ["input_var"]
+        le = expr - set_min
+        ue = expr - set_max
+        le_good = le >= 0.0
+        ue_good = ue <= 0.0
+        above = cs.dot(le_good - 1, le_good - 1) == 0
+        below = cs.dot(ue_good - 1, ue_good - 1) == 0
+        inside = cs.logic_and(above, below)
+        out_dir = (cs.sign(le) + cs.sign(ue))/2.0
+        going_in = cs.dot(out_dir, dexpr) < 0.0
+        in_tc = cs.if_else(
+            inside,  # Are we inside?
+            True,  # Then true.
+            going_in,  # If not, check if we're "going_in"
+            True
+        )
+        return cs.Function("in_tc_"+cnstr.label.replace(" ", "_"),
                            list_vars+opt_var,
                            [in_tc],
                            list_names+opt_var_names,
@@ -206,13 +259,20 @@ class PseudoInverseController(BaseController):
                     else:
                         if cnstr.expression.size()[0] == 1:
                             in_tc_func = self.get_in_tangent_cone_function(cnstr)
+                        elif self.options["multidim_sets"]:
+                            in_tc_func = self.get_in_tangent_cone_function_multidim(cnstr)
                         else:
                             raise NotImplementedError("PseudoInverseController"
-                                                      + " does not yet support"
-                                                      + " multidimensional Set"
-                                                      + "Constraints. Size("
-                                                      + cnstr.label + ")="
-                                                      + str(cnstr.expression.size()))
+                                                      + " does not yet have gu"
+                                                      + "aranteed stable suppo"
+                                                      + "rt for multidimension"
+                                                      + "al SetConstraints. Si"
+                                                      + "ze("+cnstr.label+")="
+                                                      + str(cnstr.expression.size())
+                                                      + ". Set the multidim_se"
+                                                      + "ts field in options t"
+                                                      + "o True for experiment"
+                                                      + "al support.")
                         mode["in_tangent_cone_func_list"] += [in_tc_func]
             elif isinstance(cnstr, VelocityEqualityConstraint):
                 # Velocity Equality constraints: des_dconstri is just set_min
