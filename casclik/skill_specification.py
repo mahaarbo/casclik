@@ -16,7 +16,7 @@ Todo:
     * Add sanity checks to setter of constraints
 """
 import casadi as cs
-from constraints import EqualityConstraint, SetConstraint, VelocityEqualityConstraint, VelocitySetConstraint
+from casclik.constraints import EqualityConstraint, SetConstraint, VelocityEqualityConstraint, VelocitySetConstraint
 import sys
 
 
