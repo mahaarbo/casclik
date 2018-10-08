@@ -204,7 +204,15 @@ class PseudoInverseController(BaseController):
                         des_dconstri = cs.MX.zeros(cnstr.expression.size()[0])
                         mode["des_dconstr_expr_list"] += [des_dconstri]
                     else:
-                        in_tc_func = self.get_in_tangent_cone_function(cnstr)
+                        if cnstr.expression.size()[0] == 1:
+                            in_tc_func = self.get_in_tangent_cone_function(cnstr)
+                        else:
+                            raise NotImplementedError("PseudoInverseController"
+                                                      + " does not yet support"
+                                                      + " multidimensional Set"
+                                                      + "Constraints. Size("
+                                                      + cnstr.label + ")="
+                                                      + str(cnstr.expression.size()))
                         mode["in_tangent_cone_func_list"] += [in_tc_func]
             elif isinstance(cnstr, VelocityEqualityConstraint):
                 # Velocity Equality constraints: des_dconstri is just set_min
