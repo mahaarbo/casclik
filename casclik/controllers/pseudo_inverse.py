@@ -155,7 +155,7 @@ class PseudoInverseController(BaseController):
                   "J0i_expr_list": [],
                   "N0i_expr_list": [],
                   "des_dconstr_expr_list": [],
-                  "in_tangent_cone_func_list": []} for i in xrange(n_modes)]
+                  "in_tangent_cone_func_list": []} for i in range(n_modes)]
         mode_count = 0
         for cnstr in self.skill_spec.constraints:
             # We need this for everyone
@@ -184,7 +184,7 @@ class PseudoInverseController(BaseController):
                 mode_count += 1
                 section_size = 2**(n_sets - mode_count)
                 sect_ind = 0
-                for i in xrange(2**mode_count):
+                for i in range(2**mode_count):
                     # Every even section stays the same
                     # Every odd section is affected by null-space
                     if i % 2 == 1:
@@ -258,7 +258,7 @@ class PseudoInverseController(BaseController):
         full_cntrl_var_des_expr = []
         for mode in modes:
             cntrl_var_des_expr = cs.MX.zeros(n_state_var)
-            for i in xrange(len(mode["J_expr_list"])):
+            for i in range(len(mode["J_expr_list"])):
                 Ji = mode["J_expr_list"][i]
                 dconstri = mode["des_dconstr_expr_list"][i]
                 if i == 0:

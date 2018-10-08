@@ -526,7 +526,7 @@ class ModelPredictiveController(BaseController):
             list_pars += [measured_virtual_var0]
             list_par_names += ["virtual_var0"]
         # Loop over the horizon
-        for k in xrange(self.horizon_length):
+        for k in range(self.horizon_length):
             # Control input this step
             cntrl_vars_k = []
             if nslack > 0:
@@ -625,7 +625,7 @@ class ModelPredictiveController(BaseController):
         if nvirt > 0:
             res_virt += [nlp_opt[idx:idx+nvirt]]
             idx += nvirt
-        for i in xrange(self.horizon_length):
+        for i in range(self.horizon_length):
             if nslack > 0:
                 res_slack += [nlp_opt[idx:idx+nslack]]
                 idx += nslack
