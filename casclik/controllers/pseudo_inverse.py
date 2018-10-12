@@ -229,10 +229,11 @@ class PseudoInverseController(BaseController):
                     mode["des_dconstr_expr_list"] += [des_dconstri]
 
             elif isinstance(cnstr, SetConstraint):
-                # For set constraints, things are a little more complicated
-                # The modes are like a binary tree, so we have to split the
-                # list of modes to make that fit, and only affect correct ones
-                # Find indices of affected modes:
+                # For set constraints, things are a little more
+                # complicated
+                # The modes are like a binary tree, so we have to
+                # split the list of modes to make that fit, and only affect
+                # correct ones Find indices of affected modes:
                 amode_idxs = []
                 mode_count += 1
                 section_size = 2**(n_sets - mode_count)
@@ -254,7 +255,14 @@ class PseudoInverseController(BaseController):
                         J0i = cs.vertcat(*mode["J_expr_list"])
                         N0i = cs.MX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
                         mode["N0i_expr_list"] += [N0i]
-                        des_dconstri = cs.MX.zeros(cnstr.expression.size()[0])
+                        # If the last constraint is a set constraint,
+                        # activation means that we will desire to converge to
+                        # it rather than activating the null-space
+                        if cnstr == self.skill_spec.constraints[-1]:
+                            des_dconstri = -cs.mtimes(cnstr.gain,
+                                                      cnstr.expression)
+                        else:
+                            des_dconstri = cs.MX.zeros(cnstr.expression.size()[0])
                         mode["des_dconstr_expr_list"] += [des_dconstri]
                     else:
                         if cnstr.expression.size()[0] == 1:
