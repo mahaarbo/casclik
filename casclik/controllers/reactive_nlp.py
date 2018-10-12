@@ -36,7 +36,7 @@ class ReactiveNLPController(BaseController):
     weight_shifter = 0.001
 
     def __init__(self, skill_spec,
-                 cost_expr,
+                 cost_expr=None,
                  slack_var_weights=None,
                  options=None):
         self.skill_spec = skill_spec
@@ -51,6 +51,9 @@ class ReactiveNLPController(BaseController):
 
     @cost_expression.setter
     def cost_expression(self, expr):
+        if expr is None:
+            robot_vel_var = self.skill_spec.robot_vel_var
+            expr = cs.dot(robot_vel_var, robot_vel_var)
         has_r = cs.jacobian(expr, self.skill_spec.robot_var).nnz() > 0
         has_rvel = cs.jacobian(expr, self.skill_spec.robot_vel_var).nnz() > 0
         if self.skill_spec._has_virtual:
@@ -60,6 +63,12 @@ class ReactiveNLPController(BaseController):
             raise ValueError("Cost must be an expression containing "
                              + "robot_var, robot_var_vel, virtual_var,"
                              + " or virtual_vel_var.")
+        if expr.size()[0] != 1:
+            raise ValueError("Cost must be a scalar. You have size(cost_expr)="
+                             + str(expr.size()))
+        if expr.size()[1] != 1:
+            raise ValueError("Cost must be a scalar. You have size(cost_expr)="
+                             + str(expr.size()))
         self._cost_expression = expr
 
     @property
