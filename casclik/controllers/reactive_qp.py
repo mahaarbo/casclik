@@ -357,10 +357,10 @@ class ReactiveQPController(BaseController):
                                            cnstr.set_min - cnstr.expression)
                 ub_cnstr_expr += cs.mtimes(cnstr.gain,
                                            cnstr.set_max - cnstr.expression)
-            elif isinstance(cnstr.VelocityEqualityConstraint):
+            elif isinstance(cnstr, VelocityEqualityConstraint):
                 lb_cnstr_expr += cnstr.target
                 ub_cnstr_expr += cnstr.target
-            elif isinstance(cnstr.VelocitySetConstraint):
+            elif isinstance(cnstr, VelocitySetConstraint):
                 lb_cnstr_expr += cnstr.set_min
                 ub_cnstr_expr += cnstr.set_max
             # Look for slack variables
