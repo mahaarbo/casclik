@@ -312,7 +312,27 @@ class PseudoInverseController(BaseController):
         """
         #raise NotImplementedError("Setup problem functions is not done yet.")
         pass
-    
+
+    def setup_initial_problem_solver(self):
+        """Setup the initial problem solver. This does not do anything yet.
+        """
+        pass
+
+    def solve_initial_problem(self, time_var0, robot_var0,
+                              virtual_var0=None, robot_vel_var0=None,
+                              input_var0=None):
+        if self.skill_spec.slack_var is not None:
+            res_slack = cs.DM.zeros(self.skill_spec.slack_var.size())
+        if virtual_var0 is not None:
+            res_virt = cs.DM.zeros(self.skill_spec.virtual_var.size())
+        else:
+            res_virt = None
+        if self.skill_spec.slack_var is not None:
+            res_slack = cs.DM.zeros(self.skill_spec.slack_var.size())
+        else:
+            res_slack = None
+        return res_virt, res_slack
+
     def setup_solver(self):
         func_opts = self.options["function_opts"]
         time_var = self.skill_spec.time_var
@@ -364,7 +384,10 @@ class PseudoInverseController(BaseController):
     def solve(self, time_var,
               robot_var,
               virtual_var=None,
-              input_var=None):
+              input_var=None,
+              warmstart_robot_vel_var=None,
+              warmstart_virtual_vel_var=None,
+              warmstart_slack_var=None):
         currvals = [time_var, robot_var]
         nrob = self.skill_spec.n_robot_var
         nvirt = self.skill_spec.n_virtual_var
