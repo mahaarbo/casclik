@@ -612,6 +612,24 @@ class ModelPredictiveController(BaseController):
                                 self.mpc_problem["nlp"],
                                 self.options["solver_opts"])
 
+    def setup_initial_problem_solver(self):
+        """Setup the initial problem solver. This does nothing at the
+        moment.
+        """
+        pass
+
+    def solve_initial_problem(self, time_var0, robot_var0,
+                              virtual_var0=None, robot_vel_var0=None):
+        if virtual_var0 is not None:
+            res_virt = cs.DM.zeros(self.skill_spec.virtual_var.size())
+        else:
+            res_virt = None
+        if self.skill_spec.slack_var is not None:
+            res_slack = cs.DM.zeros(self.skill_spec.slack_var.size())
+        else:
+            res_slack = None
+        return res_virt, res_slack
+
     def get_horizons(self):
         """Returns a tuple of the desired inputs and the predicted states.
         Can only be called after solve
@@ -657,7 +675,10 @@ class ModelPredictiveController(BaseController):
 
     def solve(self, time_var, robot_var,
               virtual_var=None,
-              opt_var0=None):
+              opt_var0=None,
+              warmstart_robot_vel_var=None,
+              warmstart_virtual_vel_var=None,
+              warmstart_slack_var=None):
         currvals = [time_var, robot_var]
         if virtual_var is not None:
             currvals += [virtual_var]
