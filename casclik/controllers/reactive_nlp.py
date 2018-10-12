@@ -337,7 +337,7 @@ class ReactiveNLPController(BaseController):
             opt_var += [virtual_vel_var]
             list_par += [virtual_var]
             list_names += ["virtual_var"]
-        if nvirt > 0:
+        if nslack > 0:
             opt_var += [slack_var]
         if self.skill_spec._has_input:
             list_par += [input_var]
