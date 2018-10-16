@@ -47,6 +47,8 @@ class PseudoInverseController(BaseController):
             opt["feedforward"] = True
         if "multidim_sets" not in opt:
             opt["multidim_sets"] = False
+        if "converge_final_set_to_max" not in opt:
+            opt["converge_final_set_to_max"] = False
         if "function_opts" not in opt:
             opt["function_opts"] = {}
         function_opts = opt["function_opts"]
@@ -229,11 +231,16 @@ class PseudoInverseController(BaseController):
                     mode["des_dconstr_expr_list"] += [des_dconstri]
 
             elif isinstance(cnstr, SetConstraint):
-                # For set constraints, things are a little more
-                # complicated
-                # The modes are like a binary tree, so we have to
-                # split the list of modes to make that fit, and only affect
-                # correct ones Find indices of affected modes:
+                # For set constraints, things are a little more complicated.
+                # The modes are like a binary tree, so we have to split the
+                # list of modes to make that fit, and only affect correct ones
+                # If the last constraint is a set constraint, there is an
+                # option specifying that activation means that we will converge
+                # to the set_max rather than "activating"" a non-functioning null-space.
+                final_conv = self.options["converge_final_set_to_max"]
+                is_last = cnstr == self.skill_spec.constraints[-1]
+
+                # Find indices of affected modes:
                 amode_idxs = []
                 mode_count += 1
                 section_size = 2**(n_sets - mode_count)
@@ -255,12 +262,9 @@ class PseudoInverseController(BaseController):
                         J0i = cs.vertcat(*mode["J_expr_list"])
                         N0i = cs.MX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
                         mode["N0i_expr_list"] += [N0i]
-                        # If the last constraint is a set constraint,
-                        # activation means that we will desire to converge to
-                        # it rather than activating the null-space
-                        if cnstr == self.skill_spec.constraints[-1]:
-                            des_dconstri = -cs.mtimes(cnstr.gain,
-                                                      cnstr.expression)
+                        if is_last and final_conv:
+                            des_dconstri = cs.mtimes(cnstr.gain,
+                                                     cnstr.set_max - cnstr.expression)
                         else:
                             des_dconstri = cs.MX.zeros(cnstr.expression.size()[0])
                         mode["des_dconstr_expr_list"] += [des_dconstri]
