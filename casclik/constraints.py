@@ -55,14 +55,16 @@ class BaseConstraint(object):
             for val in self.gain:
                 if not isinstance(val, float):
                     if not isinstance(val, int):
-                        raise TypeError("Unknown gain type. Supported are:"
-                                        + " float, MX, DM, numpy.ndarray, and"
-                                        + "list of floats/ints")
+                        raise TypeError("Unknown gain type in " + self.label
+                                        + ". Supported are: float, MX, DM, "
+                                        + "numpy.ndarray, and list of floats"
+                                        + "/ints")
             if len(self.gain) == expr_size[0]:
                 return True
         else:
-            raise TypeError("Unknown gain type. Supported are: float, MX, DM,"
-                            + " numpy.ndarray, and list of floats/ints.")
+            raise TypeError("Unknown gain type in " + self.label + "."
+                            + "Supported are: float, MX, DM, numpy."
+                            + ".ndarray, and list of floats/ints.")
         return False
 
     def jacobian(self, var):
@@ -228,8 +230,9 @@ class SetConstraint(BaseConstraint):
             elif szi[0] == expr_size[0] and szi[1] == 1:
                 rmin = True
         else:
-            raise TypeError("Unknown set_min type. Supported are float,"
-                            + " MX, DM, and numpy.ndarray")
+            raise TypeError("Unknown set_min type in " + self.label
+                            + ". Supported are float, MX, DM, and "
+                            + "numpy.ndarray")
 
         if isinstance(self.set_max, float):
             if expr_size[0] == 1:
@@ -253,8 +256,9 @@ class SetConstraint(BaseConstraint):
                 rmax = True
 
         else:
-            raise TypeError("Unknown set_max type. supported are float,"
-                            + " MX, DM, and numpy.ndarray")
+            raise TypeError("Unknown set_max type in " + self.label
+                            + ". supported are float, MX, DM, and "
+                            + "numpy.ndarray")
         return rgain and rmin and rmax
 
     def __add__(self, cnstrB):
