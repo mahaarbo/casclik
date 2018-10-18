@@ -7,7 +7,6 @@ Todo:
     * Allow SetConstraints to have set_min & set_max that are expressions
 """
 import casadi as cs
-import logging
 
 
 class BaseConstraint(object):
