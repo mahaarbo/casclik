@@ -205,7 +205,8 @@ class ModelPredictiveController(BaseController):
                 solver_opts["qpsol"] = "qpoases"
             if "qpsol_options" not in solver_opts:
                 solver_opts["qpsol_options"] = {"printLevel": "none"}
-
+        if "initial_solver_opts" not in opt:
+            opt["initial_solver_opts"] = solver_opts
         if "function_opts" not in opt:
             opt["function_opts"] = {}
         function_opts = opt["function_opts"]
