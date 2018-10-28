@@ -177,7 +177,8 @@ class ReactiveNLPController(BaseController):
                 solver_opts["qpsol"] = "qpoases"
             if "qpsol_options" not in solver_opts:
                 solver_opts["qpsol_options"] = {"printLevel": "none"}
-
+        if "initial_solver_opts" not in opt:
+            opt["initial_solver_opts"] = solver_opts
         if "function_opts" not in opt:
             opt["function_opts"] = {}
         function_opts = opt["function_opts"]
@@ -290,7 +291,7 @@ class ReactiveNLPController(BaseController):
             list_vars += [virtual_var]
             list_names += ["virtual_var"]
         input_var = self.skill_spec.input_var
-        if input_var is not None and self.skill_spec.has_input:
+        if input_var is not None and self.skill_spec._has_input:
             list_vars += [input_var]
             list_names += ["input_var"]
         # Cost and cnstr have opt_var in them
@@ -427,7 +428,7 @@ class ReactiveNLPController(BaseController):
         self.initial_solver = cs.nlpsol("solver",
                                         self.options["solver_name"],
                                         self._initial_problem["nlp"],
-                                        self.options["solver_opts"])
+                                        self.options["initial_solver_opts"])
         self._has_initial = True
 
     def solve_initial_problem(self,  time_var0, robot_var0,
