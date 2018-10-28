@@ -172,6 +172,8 @@ class SkillSpecification(object):
         sys.stdout.write("SkillSpecification: "+self.label+"\n")
         for cnstr_id, cnstr in enumerate(self.constraints):
             sys.stdout.write("#"+str(cnstr_id)+": "+cnstr.label+"\n")
+        sys.stdout.write("Has virtual var: "+str(self._has_virtual)+"\n")
+        sys.stdout.write("Has input var: "+str(self._has_input)+"\n")
         count_dict = self.count_constraints()
         sys.stdout.write("N constraints: "+str(count_dict["all"])+"\n")
         sys.stdout.write("N equality:\n")
