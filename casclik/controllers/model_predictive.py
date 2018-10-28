@@ -430,13 +430,16 @@ class ModelPredictiveController(BaseController):
                         set_min[idx] = max(cnstr.set_min[idx], -1e20)
                 elif isinstance(cnstr.set_min, (int, float)):
                     set_min = max(cnstr.set_min, -1e20)
+                else:  # Pass it along and hope for the best
+                    set_min = cnstr.set_min
                 if isinstance(cnstr.set_max, (list, cs.np.ndarray)):
                     set_max = cnstr.set_max
                     for idx, item in enumerate(cnstr.set_max):
                         set_max[idx] = min(cnstr.set_max[idx], 1e20)
                 elif isinstance(cnstr.set_max, (int, float)):
                     set_max = min(cnstr.set_max, 1e20)
-
+                else:  # pass it along and hope for the best
+                    set_max = cnstr.set_max
                 cnstr_expr += - cs.mtimes(cnstr.gain,
                                           set_min - cnstr.expression)
                 cnstr_expr2 += - cs.mtimes(cnstr.gain,
