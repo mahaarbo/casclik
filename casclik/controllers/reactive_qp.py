@@ -94,12 +94,12 @@ class ReactiveQPController(BaseController):
             if weights.size2 != 1:
                 raise ValueError("virtual_var_weights must be a vector.")
             elif weights.size1 != self.skill_spec.n_virtual_var:
-                raise ValueError("virtual_var_weights and virtual_var dimensions"
-                                 + " do not match.")
+                raise ValueError("virtual_var_weights and virtual_var"
+                                 + " dimensions do not match.")
         elif isinstance(weights, (list, cs.np.ndarray)):
             if len(weights) != self.skill_spec.n_virtual_var:
-                raise ValueError("virtual_var_weights and virtual_var dimensions"
-                                 + " do not match")
+                raise ValueError("virtual_var_weights and virtual_var"
+                                 + " dimensions do not match")
             weights = cs.vertcat(weights)
         self._virtual_var_weights = weights
 
