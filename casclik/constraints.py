@@ -108,7 +108,7 @@ class EqualityConstraint(BaseConstraint):
         gain (float,cs.MX,cs.DM,cs.np.ndarray): gain in the constraint
         constraint_type (str): "hard" or "soft", for opt.prob. controllers
         priority (int): sorting key of constraint, for pseudoinv. controllers
-
+        slack_weight (float): Optional specification of slack_var weight
     """
     constraint_class = "EqualityConstraint"
 
@@ -116,10 +116,12 @@ class EqualityConstraint(BaseConstraint):
                  expression,
                  gain=1.0,
                  constraint_type="hard",
-                 priority=1):
+                 priority=1,
+                 slack_weight=1.0):
         BaseConstraint.__init__(self, label, expression, gain)
         self.constraint_type = constraint_type
         self.priority = priority
+        self.slack_weight = slack_weight
         if not self._check_sizes():
             raise ValueError("Gain and expression dimensions do not match.")
 
@@ -180,26 +182,34 @@ class SetConstraint(BaseConstraint):
         set_max (list, cs.MX, cs.DM, cs.np.ndarray): maximum value of set
         constraint_type (str): "hard" or "soft", for opt.prob. controllers
         priority (int): sorting key of constraint, for pseudoinv. controllers
-
+        slack_weight (float): Optional slack_var weight
     """
     constraint_class = "SetConstraint"
 
     def __init__(self, label,
                  expression,
                  gain=1.0,
-                 set_min=-1e10,
-                 set_max=1e10,
+                 set_min=None,
+                 set_max=None,
                  constraint_type="hard",
-                 priority=1):
+                 priority=1,
+                 slack_weight=1.0):
         BaseConstraint.__init__(self, label,
                                 expression, gain)
         self.constraint_type = constraint_type
         self.priority = priority
-        self.set_min = set_min
-        self.set_max = set_max
+        if set_min is None:
+            self.set_min = -1e10*cs.np.ones(expression.size()[0])
+        else:
+            self.set_min = set_min
+        if set_max is None:
+            self.set_max = 1e10*cs.np.ones(expression.size()[0])
+        else:
+            self.set_max = set_max
+        self.slack_weight = slack_weight
         if not self._check_sizes():
             raise ValueError("Gain, set limits, or expression dimensions"
-                             + " do not match.")
+                             + " do not match in " + self.label)
 
     def _check_sizes(self):
         """Checks sizes of the expression, set, and gain."""
@@ -308,6 +318,7 @@ class VelocityEqualityConstraint(BaseConstraint):
         constraint_type (str): "hard" or "soft", for opt.prob.controllers
         priority (int): sorting key of constraints, for pseudoinv.controllers
         target (float,cs.MX,cs.DM,cs.np.ndarray): target value of velocity
+        slack_weight (float): Optional slack_var weight
     """
 
     def __init__(self, label,
@@ -315,11 +326,13 @@ class VelocityEqualityConstraint(BaseConstraint):
                  gain=1.0,
                  constraint_type="hard",
                  priority=1,
-                 target=0.0):
+                 target=0.0,
+                 slack_weight=1.0):
         BaseConstraint.__init__(self, label, expression, gain)
         self.constraint_type = constraint_type
         self.priority = priority
         self.target = target
+        self.slack_weight = slack_weight
 
 
 class VelocitySetConstraint(BaseConstraint):
@@ -338,6 +351,7 @@ class VelocitySetConstraint(BaseConstraint):
         set_max (list,cs.mx,cs.DM,cs.np.ndarray): maximum value of velocity
         constraint_type (str): "hard" or "soft", for opt.prob.controllers
         priority (int): sorting key of constraint
+        slack_weight (float): optional slack_var weight
     """
     def __init__(self, label,
                  expression,
@@ -345,10 +359,12 @@ class VelocitySetConstraint(BaseConstraint):
                  set_min=-1e10,
                  set_max=1e10,
                  constraint_type="hard",
-                 priority=1):
+                 priority=1,
+                 slack_weight=1.0):
         BaseConstraint.__init__(self, label,
                                 expression, gain)
         self.constraint_type = constraint_type
         self.priority = priority
         self.set_min = set_min
         self.set_max = set_max
+        self.slack_weight = slack_weight

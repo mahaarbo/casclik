@@ -103,7 +103,12 @@ class ModelPredictiveController(BaseController):
     @slack_var_weights.setter
     def slack_var_weights(self, weights):
         if weights is None:
-            weights = cs.vertcat([1.]*self.skill_spec.n_slack_var)
+            weights_list = []
+            for cnstr in self.skill_spec.constraints:
+                if cnstr.constraint_type == "soft":
+                    ones = cs.np.ones(cnstr.expression.size()[0])
+                    weights_list += [cs.mtimes(cnstr.slack_weight, ones)]
+            weights = cs.vertcat(*weights_list)
         elif isinstance(weights, cs.GenericCommonMatrix):
             if weights.size2 != 1:
                 raise ValueError("slack_var_weights must be a vector.")
