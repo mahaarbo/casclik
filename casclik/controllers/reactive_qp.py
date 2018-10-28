@@ -159,6 +159,8 @@ class ReactiveQPController(BaseController):
             solver_opts["jit"] = True
         if "jit_options" not in solver_opts:
             solver_opts["jit_options"] = {"flags": "-O2"}
+        if "initial_solver_opts" not in opt:
+            opt["initial_solver_opts"] = solver_opts
         if "function_opts" not in opt:
             opt["function_opts"] = {}
         function_opts = opt["function_opts"]
@@ -420,7 +422,7 @@ class ReactiveQPController(BaseController):
                                        self.options["solver_name"],
                                        {"h": H_expr.sparsity(),
                                         "a": A_expr.sparsity()},
-                                       self.options["solver_opts"])
+                                       self.options["initial_solver_opts"])
         self._has_initial = True
 
     def solve_initial_problem(self, time_var0, robot_var0,
