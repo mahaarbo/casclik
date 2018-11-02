@@ -114,7 +114,7 @@ class PseudoInverseController(BaseController):
             dexpr += cs.jtimes(expr, virtual_var, virtual_vel_var)
         if input_var is not None:
             list_vars += [input_var]
-            list_vars += ["input_var"]
+            list_names += ["input_var"]
         if_low_inc = cs.if_else(
             dexpr > 0,
             True,
