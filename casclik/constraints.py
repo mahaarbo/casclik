@@ -30,7 +30,6 @@ class BaseConstraint(object):
         return self.expression.size()
 
     def _check_sizes(self):
-        # Todo add list check as well
         expr_size = self.size()
         if expr_size[1] != 1:
             return False
