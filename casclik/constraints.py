@@ -51,12 +51,11 @@ class BaseConstraint(object):
             return True
         elif isinstance(self.gain, list):
             for val in self.gain:
-                if not isinstance(val, float):
-                    if not isinstance(val, int):
-                        raise TypeError("Unknown gain type in " + self.label
-                                        + ". Supported are: float, MX, DM, "
-                                        + "numpy.ndarray, and list of floats"
-                                        + "/ints")
+                if not isinstance(val, (float, int)):
+                    raise TypeError("Unknown gain type in " + self.label
+                                    + ". Supported are: float, MX, DM, "
+                                    + "numpy.ndarray, and list of floats"
+                                    + "/ints")
             if len(self.gain) == expr_size[0]:
                 return True
         else:
