@@ -223,13 +223,29 @@ class PseudoInverseController(BaseController):
             list_vars += ["input_var"]
         le = expr - set_min
         ue = expr - set_max
-        le_good = le >= 0.0
-        ue_good = ue <= 0.0
+        le_good = le >= 1e-12
+        ue_good = ue <= 1e-12
         above = cs.dot(le_good - 1, le_good - 1) == 0
         below = cs.dot(ue_good - 1, ue_good - 1) == 0
         inside = cs.logic_and(above, below)
         out_dir = (cs.sign(le) + cs.sign(ue))/2.0
-        going_in = cs.dot(out_dir, dexpr) < 0.0
+        # going_in = cs.dot(out_dir, dexpr) <= 0.0
+        same_signs = cs.sign(le) == cs.sign(ue)
+        corner = cs.dot(same_signs - 1, same_signs - 1) == 0
+        dists = (cs.norm_2(dexpr)+1e-10)*cs.norm_2(out_dir)
+        corner_handler = cs.if_else(
+            cs.dot(out_dir, dexpr) < 0.0,
+            cs.fabs(cs.dot(-out_dir, dexpr))/dists < cs.np.cos(cs.np.pi/4),
+            False,
+            True
+        )
+        going_in = cs.if_else(
+            corner,
+            corner_handler,
+            cs.dot(out_dir, dexpr) < 0.0,
+            True
+        )
+
         in_tc = cs.if_else(
             inside,  # Are we inside?
             True,  # Then true.
