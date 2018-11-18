@@ -3,7 +3,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import casadi as cs
 
 
-def joints(simres, axs=None, max_speed=None, label_suffix=""):
+def joints(simres, axs=None, max_speed=None, label_suffix="", lstyle="-"):
     """Plot joint states wrt time from a simres dictionary.
 
     If given 2 axes, it will plot joints in the first and joint speeds
@@ -15,9 +15,9 @@ def joints(simres, axs=None, max_speed=None, label_suffix=""):
         fig, axs = plt.subplots(2, 1)
     for i in xrange(nq):
         axs[0].plot(simres["t_sim"], simres["q_sim"][:, i],
-                    label="q"+str(i)+label_suffix)
+                    label="q"+str(i)+label_suffix,ls=lstyle)
         axs[1].plot(simres["t_sim"], simres["dq_sim"][:, i],
-                    label="dq"+str(i)+label_suffix)
+                    label="dq"+str(i)+label_suffix,ls=lstyle)
     axs[0].set_ylabel("Position [rad]")
     axs[0].set_xlabel("time [s]")
     axs[0].legend()
@@ -31,7 +31,7 @@ def joints(simres, axs=None, max_speed=None, label_suffix=""):
     return axs
 
 
-def pos_point(simres, ax=None, p_des=None, label_suffix=""):
+def pos_point(simres, ax=None, p_des=None, label_suffix="", lstyle="-"):
     """Plot position wrt time from a simres dictionary."""
     ns = simres["p_sim"].shape[1]
     cmap = plt.get_cmap("tab10")
@@ -39,11 +39,17 @@ def pos_point(simres, ax=None, p_des=None, label_suffix=""):
         fig, ax = plt.subplots(1, 1)
     for i in xrange(ns):
         ax.plot(simres["t_sim"], simres["p_sim"][:, i],
-                color=cmap(i), label=chr(ord("x")+i)+label_suffix)
+                color=cmap(i), label=chr(ord("x")+i)+label_suffix,
+                ls=lstyle)
         if p_des is not None:
-            ax.plot([min(simres["t_sim"]), max(simres["t_sim"])],
-                    [p_des[i], p_des[i]], color=cmap(i), ls="--",
-                    label=chr(ord("x")+i)+"_des")
+            if not isinstance(p_des, cs.Function):
+                ax.plot([min(simres["t_sim"]), max(simres["t_sim"])],
+                        [p_des[i], p_des[i]], color=cmap(i), ls="--",
+                        label=chr(ord("x")+i)+"_des")
+            else:
+                p_des_sim = [p_des(t).toarray()[i] for t in simres["t_sim"]]
+                ax.plot(simres["t_sim"], p_des_sim, color=cmap(i),
+                        ls="--", label=chr(ord("x")+i)+"_des")
     ax.legend()
     return ax
 

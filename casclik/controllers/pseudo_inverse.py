@@ -84,6 +84,32 @@ class PseudoInverseController(BaseController):
         self.cntrl_var = cntrl_var
         self.n_state_var = n_state_var
         self._skill_spec = spec
+        self.create_activation_map()
+
+    def create_activation_map(self):
+        """Create the activation map.
+
+        Activation of set constraints forms a binary decision tree. We
+        exploit this to create an activation mapping by first creating a
+        list of the binary representations of each number between 0 and
+        2^{n_sets} - 1 reversed, and then sort that list according to
+        the sum of ones in the binary representation.
+        """
+        # Create a list of lists of bits for binary numbers
+        n_sets = self.n_set_constraints
+        if n_sets == 0:
+            self.activation_map = []
+            return
+        binmaps = []
+        for mode_idx in range(2**n_sets):
+            mode_bin_total = [0 for i in range(n_sets)]
+            mode_idx_bin = [int(i) for i in bin(mode_idx)[2:]]
+            for idx, val in enumerate(reversed(mode_idx_bin)):
+                mode_bin_total[-(idx+1)] = val
+            mode_bin_total = list(reversed(mode_bin_total))
+            binmaps += [mode_bin_total]
+        # Sort them according to how many are active
+        self.activation_map = sorted(binmaps, key=lambda s: cs.np.sum(s))
 
     def get_in_tangent_cone_function(self, cnstr):
         """Returns a casadi function for the SetConstraint instance."""
@@ -197,82 +223,105 @@ class PseudoInverseController(BaseController):
                            ["in_tc_"+cnstr.label])
 
     def get_problem_expressions(self):
-        """Initializes the constraint derivatives, Jacobians and null-space
-        functions."""
+        """Initialize the desired control variables."""
         time_var = self.skill_spec.time_var
         state_var = self.state_var
         n_state_var = self.n_state_var
         n_modes = self.n_modes
-        n_sets = self.n_set_constraints
-        # Prepare all the modes
-        modes = [{"J_expr_list": [],
-                  "Jt_expr_list": [],
-                  "J0i_expr_list": [],
-                  "N0i_expr_list": [],
-                  "des_dconstr_expr_list": [],
-                  "in_tangent_cone_func_list": []} for i in range(n_modes)]
-        mode_count = 0
-        for cnstr in self.skill_spec.constraints:
-            # We need this for everyone
-            Ji = cnstr.jacobian(state_var)
-            Jti = cnstr.jacobian(time_var)
-            if isinstance(cnstr, EqualityConstraint):
-                # For equality constraints, we always do the same
-                for mode in modes:
-                    mode["J_expr_list"] += [Ji]
-                    mode["Jt_expr_list"] += [Jti]
-                    J0i = cs.vertcat(*mode["J_expr_list"])
-                    mode["J0i_expr_list"] += [J0i]
-                    N0i = cs.MX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
-                    mode["N0i_expr_list"] += [N0i]
-                    des_dconstri = -cs.mtimes(cnstr.gain, cnstr.expression)
-                    if self.options["feedforward"]:
-                        des_dconstri += -Jti
-                    mode["des_dconstr_expr_list"] += [des_dconstri]
-
-            elif isinstance(cnstr, SetConstraint):
-                # For set constraints, things are a little more complicated.
-                # The modes are like a binary tree, so we have to split the
-                # list of modes to make that fit, and only affect correct ones
-                # If the last constraint is a set constraint, there is an
-                # option specifying that activation means that we will converge
-                # to the set_max rather than "activating"" a non-functioning null-space.
-                final_conv = self.options["converge_final_set_to_max"]
+        modes = [{} for i in range(n_modes)]
+        # Figure out how to do modes here
+        for mode_idx, mode in enumerate(modes):
+            set_idx = 0
+            cntrl_var_expr = cs.MX.zeros(n_state_var)
+            J_active_list = []
+            rJ_active_list = []
+            in_tc_list = []
+            active_set_names = []
+            for cnstr_idx, cnstr in enumerate(self.skill_spec.constraints):
+                # Identifiers
+                is_first = len(J_active_list) == 0
                 is_last = cnstr == self.skill_spec.constraints[-1]
+                is_set = isinstance(cnstr, SetConstraint)
+                is_eq = isinstance(cnstr, EqualityConstraint)
+                is_veleq = isinstance(cnstr, VelocityEqualityConstraint)
+                conv_last = self.options["converge_final_set_to_max"]
+                use_multidim = self.options["multidim_sets"]
 
-                # Find indices of affected modes:
-                amode_idxs = []
-                mode_count += 1
-                section_size = 2**(n_sets - mode_count)
-                sect_ind = 0
-                for i in range(2**mode_count):
-                    # Every even section stays the same
-                    # Every odd section is affected by null-space
-                    if i % 2 == 1:
-                        amode_idxs += range(sect_ind, sect_ind+section_size)
-                    sect_ind += section_size
-                # The affected modes are the modes where the constraint is
-                # active. Then loop over the modes.
-                # If a mode is affected, we modify the expressions
-                # If it isn't affected, we give it the in_tc_func
-                for mode_idx, mode in enumerate(modes):
-                    if mode_idx in amode_idxs:
-                        mode["J_expr_list"] += [Ji]
-                        mode["Jt_expr_list"] += [Jti]
-                        J0i = cs.vertcat(*mode["J_expr_list"])
-                        N0i = cs.MX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
-                        mode["N0i_expr_list"] += [N0i]
-                        if is_last and final_conv:
-                            des_dconstri = cs.mtimes(cnstr.gain,
-                                                     cnstr.set_max - cnstr.expression)
+                # General jacobians
+                Jt = cnstr.jacobian(time_var)
+                Ji = cnstr.jacobian(state_var)
+
+                # Activation matrix for multidim set constraints
+                if use_multidim and is_set:
+                    # The jacobian is only active in set active
+                    # directions
+                    above = cnstr.expression - cnstr.set_max > 0.0
+                    below = cnstr.expression - cnstr.set_min < 0.0
+                    active = cs.logic_or(
+                        above,
+                        below
+                        )
+                    S = cs.diag(active)
+                if not use_multidim and is_set:
+                    expr_dim = cnstr.expression.size()[0]
+                    if expr_dim > 1:
+                        raise NotImplementedError("PseudoInverseController"
+                                                  + " does not yet have gu"
+                                                  + "aranteed stable suppo"
+                                                  + "rt for multidimension"
+                                                  + "al SetConstraints. Si"
+                                                  + "ze("+cnstr.label+")="
+                                                  + str(expr_dim) + ". Set"
+                                                  + " the multidim_sets fi"
+                                                  + "eld in options to Tru"
+                                                  + "e for experimental su"
+                                                  + "pport.")
+                ########################################
+                # Case-by-case for the constraint types:
+                ########################################
+                # First has no null-space effect
+                if is_first and is_eq:
+                    cnstr_des = -cs.mtimes(cnstr.gain,
+                                           cnstr.expression)
+                    if self.options["feedforward"]:
+                        cnstr_des += -Jt
+                    cntrl_var_expr += cs.mtimes(
+                        self.pinv(Ji), cnstr_des
+                    )
+                    J_active_list += [Ji]
+                    rJ_active_list += [Ji]
+
+                # Allow convergence of last set
+                elif is_set and is_last and conv_last:
+                    if self.activation_map[mode_idx][set_idx]:
+                        cnstr_des = cs.mtimes(cnstr.gain,
+                                              cnstr.set_max - cnstr.expression)
+                        if self.options["feedforward"]:
+                            cnstr_des += -Jt
+                        J0toi = cs.vertcat(*J_active_list)
+                        rJ0toi = cs.vertcat(*rJ_active_list)
+                        N0toi = cs.MX.eye(n_state_var) - cs.mtimes(
+                            self.pinv(J0toi),
+                            rJ0toi
+                        )
+                        NJ = cs.mtimes(N0toi, self.pinv(Ji))
+                        cntrl_var_expr += cs.mtimes(NJ, cnstr_des)
+                        J_active_list += [Ji]
+                        if use_multidim:
+                            rJ_active_list += [cs.mtimes(S, Ji)]
                         else:
-                            des_dconstri = cs.MX.zeros(cnstr.expression.size()[0])
-                        mode["des_dconstr_expr_list"] += [des_dconstri]
+                            rJ_active_list += [Ji]
+                        active_set_names += [cnstr.label]
                     else:
-                        if cnstr.expression.size()[0] == 1:
-                            in_tc_func = self.get_in_tangent_cone_function(cnstr)
-                        elif self.options["multidim_sets"]:
-                            in_tc_func = self.get_in_tangent_cone_function_multidim(cnstr)
+                        expr_dim = cnstr.expression.size()[0]
+                        if expr_dim == 1:
+                            in_TC = self.get_in_tangent_cone_function(cnstr)
+                            in_tc_list += [in_TC]
+                        elif use_multidim:
+                            in_TC = self.get_in_tangent_cone_function_multidim(
+                                cnstr
+                            )
+                            in_tc_list += [in_TC]
                         else:
                             raise NotImplementedError("PseudoInverseController"
                                                       + " does not yet have gu"
@@ -280,33 +329,83 @@ class PseudoInverseController(BaseController):
                                                       + "rt for multidimension"
                                                       + "al SetConstraints. Si"
                                                       + "ze("+cnstr.label+")="
-                                                      + str(cnstr.expression.size())
-                                                      + ". Set the multidim_se"
-                                                      + "ts field in options t"
-                                                      + "o True for experiment"
-                                                      + "al support.")
-                        mode["in_tangent_cone_func_list"] += [in_tc_func]
-            elif isinstance(cnstr, VelocityEqualityConstraint):
-                # Velocity Equality constraints: des_dconstri is just set_min
-                for mode in modes:
-                    mode["J_expr_list"] += [Ji]
-                    mode["Jt_expr_list"] += [Jti]
-                    J0i = cs.vertcat(*mode["J_expr_list"])
-                    mode["J0i_expr_list"] += [J0i]
-                    N0i = cs.MX.eye(n_state_var) - cs.mtimes(cs.pinv(J0i), J0i)
-                    mode["N0i_expr_list"] += [N0i]
-                    des_dconstri = cnstr.target
+                                                      + str(expr_dim) + ". Set"
+                                                      + " the multidim_sets fi"
+                                                      + "eld in options to Tru"
+                                                      + "e for experimental su"
+                                                      + "pport.")
+                    set_idx += 1
+
+                # Others
+                elif is_eq:
+                    cnstr_des = -cs.mtimes(cnstr.gain,
+                                           cnstr.expression)
                     if self.options["feedforward"]:
-                        des_dconstri += -Jti
-                    mode["des_dconstr_expr_list"] += [des_dconstri]
-            else:
-                raise NotImplementedError("PseudoInverseController only knows"
-                                          + " of EqualityConstraint, "
-                                          + "SetConstraint, and Velocity"
-                                          + "EqualityConstraint. The "
-                                          + "constraint named "
-                                          + str(cnstr.label) + " of type: "
-                                          + str(type(cnstr)) + ".")
+                        cnstr_des += -Jt
+                    J0toi = cs.vertcat(*J_active_list)
+                    rJ0toi = cs.vertcat(*rJ_active_list)
+                    N0toi = cs.MX.eye(n_state_var) - cs.mtimes(
+                        self.pinv(J0toi),
+                        rJ0toi
+                    )
+                    NJ = cs.mtimes(N0toi, self.pinv(Ji))
+                    cntrl_var_expr += cs.mtimes(NJ, cnstr_des)
+                    J_active_list += [Ji]
+                    rJ_active_list += [Ji]
+
+                elif is_set:
+                    if self.activation_map[mode_idx][set_idx]:
+                        J_active_list += [Ji]
+                        if use_multidim:
+                            rJ_active_list += [cs.mtimes(S, Ji)]
+                        else:
+                            rJ_active_list += [Ji]
+                        active_set_names += [cnstr.label]
+                    else:
+                        expr_dim = cnstr.expression.size()[0]
+                        if expr_dim == 1:
+                            in_TC = self.get_in_tangent_cone_function(cnstr)
+                            in_tc_list += [in_TC]
+                        elif use_multidim:
+                            in_TC = self.get_in_tangent_cone_function_multidim(
+                                cnstr
+                            )
+                            in_tc_list += [in_TC]
+                        else:
+                            raise NotImplementedError("PseudoInverseController"
+                                                      + " does not yet have gu"
+                                                      + "aranteed stable suppo"
+                                                      + "rt for multidimension"
+                                                      + "al SetConstraints. Si"
+                                                      + "ze("+cnstr.label+")="
+                                                      + str(expr_dim) + ". Set"
+                                                      + " the multidim_sets fi"
+                                                      + "eld in options to Tru"
+                                                      + "e for experimental su"
+                                                      + "pport.")
+                    set_idx += 1
+
+                elif is_veleq:
+                    cnstr_des = cnstr.target
+                    if self.options["feedforward"]:
+                        cnstr_des += -Jt
+                    J0toi = cs.vertcat(*J_active_list)
+                    rJ0toi = cs.vertcat(*rJ_active_list)
+                    N0toi = cs.MX.eye(n_state_var) - cs.mtimes(
+                        self.pinv(J0toi),
+                        rJ0toi
+                    )
+                    NJ = cs.mtimes(N0toi, self.pinv(Ji))
+                    cntrl_var_expr += cs.mtimes(NJ, cnstr_des)
+                    J_active_list += [Ji]
+                    rJ_active_list += [Ji]
+
+            # End of constraints for loop
+            mode["cntrl_var_expr"] = cntrl_var_expr
+            mode["in_tangent_cone_func_list"] = in_tc_list
+            mode["active_set_names"] = active_set_names
+        # End of modes loop
+        self.modes = modes
         return modes
 
     def setup_problem_functions(self):
@@ -314,8 +413,32 @@ class PseudoInverseController(BaseController):
         future compilation of functions for speed-up and to generate
         all the modes.
         """
-        #raise NotImplementedError("Setup problem functions is not done yet.")
-        pass
+        self.get_problem_expressions()
+        func_opts = self.options["function_opts"]
+        # All variables
+        time_var = self.skill_spec.time_var
+        robot_var = self.skill_spec.robot_var
+        list_vars = [time_var, robot_var]
+        list_names = ["time_var", "robot_var"]
+        virtual_var = self.skill_spec.virtual_var
+        if virtual_var is not None:
+            list_vars += [virtual_var]
+            list_names += ["virtual_var"]
+        input_var = self.skill_spec.input_var
+        if input_var is not None:
+            list_vars += [input_var]
+            list_names += ["input_var"]
+
+        for mode_idx, mode in enumerate(self.modes):
+            cntrl_var_expr = mode["cntrl_var_expr"]
+            mode["cntrl_var_func"] = cs.Function(
+                "cntrl_var_"+str(mode_idx),
+                list_vars,
+                [cntrl_var_expr],
+                list_names,
+                ["cntrl_var"],
+                func_opts
+            )
 
     def setup_initial_problem_solver(self):
         """Setup the initial problem solver. This does not do anything yet.
@@ -325,6 +448,7 @@ class PseudoInverseController(BaseController):
     def solve_initial_problem(self, time_var0, robot_var0,
                               virtual_var0=None, robot_vel_var0=None,
                               input_var0=None):
+        """Solve the initial problem. This does not do anything yet."""
         if self.skill_spec.slack_var is not None:
             res_slack = cs.DM.zeros(self.skill_spec.slack_var.size())
         if virtual_var0 is not None:
@@ -338,52 +462,10 @@ class PseudoInverseController(BaseController):
         return res_virt, res_slack
 
     def setup_solver(self):
-        func_opts = self.options["function_opts"]
-        time_var = self.skill_spec.time_var
-        robot_var = self.skill_spec.robot_var
-        list_vars = [time_var, robot_var]
-        list_names = ["time_var", "robot_var"]
-        virtual_var = self.skill_spec.virtual_var
-        if virtual_var is not None:
-            list_vars += [virtual_var]
-            list_names += ["virtual_var"]
-        input_var = self.skill_spec.input_var
-        if input_var is not None:
-            list_vars += [input_var]
-            list_names += ["input_var"]
-        # Get all the modes and their expressions
-        modes = self.get_problem_expressions()
-        n_state_var = self.n_state_var
-        mode_ind = 0
-        full_cntrl_var_des_expr = []
-        for mode in modes:
-            cntrl_var_des_expr = cs.MX.zeros(n_state_var)
-            for i in range(len(mode["J_expr_list"])):
-                Ji = mode["J_expr_list"][i]
-                dconstri = mode["des_dconstr_expr_list"][i]
-                if i == 0:
-                    cntrl_var_des_expr += cs.mtimes(cs.pinv(Ji), dconstri)
-                else:
-                    N0i = mode["N0i_expr_list"][i-1]
-                    cntrl_var_des_expr += cs.mtimes(N0i,
-                                                    cs.mtimes(cs.pinv(Ji),
-                                                              dconstri))
-            mode["fcntrl_var_des"] = cs.Function("fdes"+str(mode_ind),
-                                                 list_vars,
-                                                 [cntrl_var_des_expr],
-                                                 list_names,
-                                                 ["cntrl_var_des"],
-                                                 func_opts)
-            full_cntrl_var_des_expr += [cntrl_var_des_expr]
-        full_cntrl_var_des_expr = cs.vertcat(*full_cntrl_var_des_expr)
-        full_cntrl_var_des_func = cs.Function("fdes",
-                                              list_vars,
-                                              [full_cntrl_var_des_expr],
-                                              list_names,
-                                              ["cntrl_var_des"],
-                                              func_opts)
-        self.modes = modes
-        self.full_cntrl_var_des_func = full_cntrl_var_des_func
+        """Sets up the solver. (just runs the get_problem_expressions
+        and setup_problem_functions)"""
+        self.get_problem_expressions()
+        self.setup_problem_functions()
 
     def solve(self, time_var,
               robot_var,
@@ -394,34 +476,39 @@ class PseudoInverseController(BaseController):
               warmstart_slack_var=None):
         currvals = [time_var, robot_var]
         nrob = self.skill_spec.n_robot_var
-        nvirt = self.skill_spec.n_virtual_var
-        if virtual_var is not None and nvirt > 0:
+        if virtual_var is not None and self.skill_spec._has_virtual:
+            nvirt = self.skill_spec.n_virtual_var
             currvals += [virtual_var]
-        if input_var is not None:
+        else:
+            nvirt = 0
+        if input_var is not None and self.skill_spec._has_input:
             currvals += [input_var]
         # Check all modes
-        for i, mode in enumerate(self.modes):
-            # The first one with all okay is the one we return
-            ALLOKAY = True
-            dcntrl_var = mode["fcntrl_var_des"](*currvals)
-            dcntrl_rob = dcntrl_var[:nrob]
-            suggested = currvals + [dcntrl_rob]
+        NONEOKAY = True
+        for mode_idx, mode in enumerate(self.modes):
+            cntrl_var = mode["cntrl_var_func"](*currvals)
+            cntrl_rob = cntrl_var[:nrob]
+            suggested = currvals + [cntrl_rob]
             if nvirt > 0:
-                dcntrl_virt = dcntrl_var[nrob:]
-                suggested += [dcntrl_virt]
-            for in_tangent_cone in mode["in_tangent_cone_func_list"]:
-                if not in_tangent_cone(*(suggested)):
+                cntrl_virt = cntrl_var[nrob:]
+                suggested += [cntrl_virt]
+            else:
+                cntrl_virt = None
+            ALLOKAY = True
+            intcstr = ""
+            for in_TC_func in mode["in_tangent_cone_func_list"]:
+                in_TC = in_TC_func(*suggested)
+                intcstr += str(int(in_TC))
+                if not in_TC:
                     ALLOKAY = False
                     break
             if ALLOKAY:
-                self.current_mode = i
+                NONEOKAY = False
+                self.current_mode = mode_idx
                 break
-        # Split robot_vel_var and virtual_vel_var
-        res_robot_vel = dcntrl_var[:nrob]
-        if nvirt > 0:
-            res_virtual_vel = dcntrl_var[nrob:nrob+nvirt]
-        else:
-            res_virtual_vel = None
-        # Same return pattern as everything else
-        # But there are no slack variables (as of yet)
-        return res_robot_vel, res_virtual_vel, None
+        if NONEOKAY:
+            self.current_mode = -1
+            cntrl_rob = cs.DM.zeros(nrob)
+            if nvirt > 0:
+                cntrl_virt = cs.DM.zeros(nvirt)
+        return cntrl_rob, cntrl_virt, None
