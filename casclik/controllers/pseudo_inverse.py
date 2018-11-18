@@ -162,25 +162,25 @@ class PseudoInverseController(BaseController):
             list_vars += [input_var]
             list_names += ["input_var"]
         if_low_inc = cs.if_else(
-            dexpr > 0,
+            dexpr > 0.,
             True,
             False,
             True
         )
         if_high_dec = cs.if_else(
-            dexpr < 0,
+            dexpr < 0.,
             True,
             False,
             True
         )
         leq_high = cs.if_else(
-            expr <= set_max,
+            expr-set_max < 1e-12,
             True,
             if_high_dec,
             True
         )
         in_tc = cs.if_else(
-            set_min <= expr,
+            set_min-expr < 1e-12,
             leq_high,
             if_low_inc,
             True
