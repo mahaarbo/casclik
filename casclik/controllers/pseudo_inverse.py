@@ -49,6 +49,11 @@ class PseudoInverseController(BaseController):
             opt["multidim_sets"] = False
         if "converge_final_set_to_max" not in opt:
             opt["converge_final_set_to_max"] = False
+        if "pinv_method" not in opt:
+            # Options: standard, damped
+            opt["pinv_method"] = "damped"
+        if "damping_factor" not in opt:
+            opt["damping_factor"] = 1e-7
         if "function_opts" not in opt:
             opt["function_opts"] = {}
         function_opts = opt["function_opts"]
@@ -85,6 +90,21 @@ class PseudoInverseController(BaseController):
         self.n_state_var = n_state_var
         self._skill_spec = spec
         self.create_activation_map()
+
+    def pinv(self, J):
+        if self.options["pinv_method"] == "standard":
+            pJ = cs.pinv(J)
+        elif self.options["pinv_method"] == "damped":
+            dmpng_fctr = self.options["damping_factor"]
+            if J.size2() >= J.size1():
+                inner = cs.mtimes(J, J.T)
+                inner += dmpng_fctr*cs.DM.eye(J.size1())
+                pJ = cs.solve(inner, J).T
+            else:
+                inner = cs.mtimes(J.T, J)
+                inner += dmpng_fctr*cs.DM.eye(J.size2())
+                pJ = cs.solve(inner, J.T)
+        return pJ
 
     def create_activation_map(self):
         """Create the activation map.
