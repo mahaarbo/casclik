@@ -184,8 +184,6 @@ class ReactiveNLPController(BaseController):
         function_opts = opt["function_opts"]
         if "jit" not in function_opts:
             function_opts["jit"] = True
-        if "compiler" not in function_opts:
-            function_opts["compiler"] = "shell"
         if "print_time" not in function_opts:
             function_opts["print_time"] = False
         if "jit_options" not in function_opts:
