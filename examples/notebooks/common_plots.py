@@ -62,7 +62,13 @@ def pos_point_3d(simres, ax=None, p_des=None):
             simres["p_sim"][:, 1],
             simres["p_sim"][:, 2])
     if p_des is not None:
-        ax.scatter(p_des[0], p_des[1], p_des[2], s=20, color="k")
+        if isinstance(p_des,cs.Function):
+            p_x = [p_des(t).toarray()[0] for t in simres["t_sim"]]
+            p_y = [p_des(t).toarray()[1] for t in simres["t_sim"]]
+            p_z = [p_des(t).toarray()[2] for t in simres["t_sim"]]
+            ax.plot(p_x, p_y, p_z)
+        else:
+            ax.scatter(p_des[0], p_des[1], p_des[2], s=20, color="k")
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
     ax.set_zlabel("z [m]")
