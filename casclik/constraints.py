@@ -216,7 +216,7 @@ class SetConstraint(BaseConstraint):
         rmin = False
         rmax = False
         rgain = BaseConstraint._check_sizes(self)
-        if isinstance(self.set_min, float):
+        if isinstance(self.set_min, (float, int)):
             if expr_size[0] == 1:
                 rmin = True
         elif isinstance(self.set_min, cs.MX):
@@ -241,7 +241,7 @@ class SetConstraint(BaseConstraint):
                             + ". Supported are float, MX, DM, and "
                             + "numpy.ndarray")
 
-        if isinstance(self.set_max, float):
+        if isinstance(self.set_max, (float, int)):
             if expr_size[0] == 1:
                 rmax = True
         elif isinstance(self.set_max, cs.MX):
