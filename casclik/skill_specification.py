@@ -160,12 +160,44 @@ class SkillSpecification(object):
             for cnstr in self.constraints:
                 if cs.jacobian(cnstr.expression, virtual_var).nnz() > 0:
                     self._has_virtual = True
+                if hasattr(cnstr, "target"):
+                    if isinstance(cnstr.target, cs.MX):
+                        if cs.jacobian(cnstr.target, virtual_var).nnz() > 0:
+                            self._has_virtual = True
+                if hasattr(cnstr, "set_min"):
+                    if isinstance(cnstr.set_min, cs.MX):
+                        if cs.jacobian(cnstr.set_min, virtual_var).nnz() > 0:
+                            self._has_virtual = True
+                if hasattr(cnstr, "set_max"):
+                    if isinstance(cnstr.set_max, cs.MX):
+                        if cs.jacobian(cnstr.set_max, virtual_var).nnz() > 0:
+                            self._has_virtual = True
+                if hasattr(cnstr, "gain"):
+                    if isinstance(cnstr.gain, cs.MX):
+                        if cs.jacobian(cnstr.gain, virtual_var).nnz() > 0:
+                            self._has_virtual = True
         self._has_input = False
         if self.input_var is not None:
             input_var = self.input_var
             for cnstr in self.constraints:
                 if cs.jacobian(cnstr.expression, input_var).nnz() > 0:
                     self._has_input = True
+                if hasattr(cnstr, "target"):
+                    if isinstance(cnstr.target, cs.MX):
+                        if cs.jacobian(cnstr.target, input_var).nnz() > 0:
+                            self._has_input = True
+                if hasattr(cnstr, "set_min"):
+                    if isinstance(cnstr.set_min, cs.MX):
+                        if cs.jacobian(cnstr.set_min, input_var).nnz() > 0:
+                            self._has_input = True
+                if hasattr(cnstr, "set_max"):
+                    if isinstance(cnstr.set_max, cs.MX):
+                        if cs.jacobian(cnstr.set_max, input_var).nnz() > 0:
+                            self._has_input = True
+                if hasattr(cnstr, "gain"):
+                    if isinstance(cnstr.gain, cs.MX):
+                        if cs.jacobian(cnstr.gain, input_var).nnz() > 0:
+                            self._has_input = True
 
     def print_constraints(self):
         """Prints information about the constraints in the skill."""
