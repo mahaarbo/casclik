@@ -324,7 +324,15 @@ class PseudoInverseController(BaseController):
                     )
                     J_active_list += [Ji]
                     rJ_active_list += [Ji]
-
+                if is_first and is_veleq:
+                    cnstr_des = cnstr.target
+                    if self.options["feedforward"]:
+                        cnstr_des += -Jt
+                    cntrl_var_expr += cs.mtimes(
+                        self.pinv(Ji), cnstr_des
+                    )
+                    J_active_list += [Ji]
+                    rJ_active_list += [Ji]
                 # Allow convergence of last set
                 elif is_set and is_last and conv_last:
                     if self.activation_map[mode_idx][set_idx]:
