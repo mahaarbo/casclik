@@ -30,7 +30,7 @@ class PseudoInverseController(BaseController):
                  options=None):
         self.skill_spec = skill_spec
         self.options = options
-    
+
     @property
     def options(self):
         """Get or set the options, See
