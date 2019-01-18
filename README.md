@@ -6,6 +6,7 @@ This is a library for rapid prototyping of constraint-based, task-priority close
 
 
 [1]: Moe et al., [Set-Based Tasks within the Singularity-Robust Multiple Task-Priority Inverse Kinematics Framework: General Formulation, Stability Analysis, and Experimental Results](https://www.frontiersin.org/articles/10.3389/frobt.2016.00016/full), 2016
+
 [2]: Aertbeliën and De Schutter, [eTaSL/eTC: A constraint-based task specification language and robot controller using expression graphs](https://ieeexplore.ieee.org/document/6942760), 2014
 
 ## Requirements
@@ -25,4 +26,4 @@ Python module for automatically generating [CasADi](https://web.casadi.org/) fun
 It also supports Denavit-Hartenberg parameters. Link: [urdf2casadi](https://github.com/mahaarbo/urdf2casadi).
 
 ### casclik\_examples
-This is a [ROS](http://www.ros.org/) metapackage with example integration of CASCLIK into [ROS](http://www.ros.org/). The `casclik\_basics` package contains a robot interface for sending joint position commands to the robot. But check out `casclik\_tests` first. Link: [casclik\_examples](https://github.com/mahaarbo/casclik_examples).
+This is a [ROS](http://www.ros.org/) metapackage with example integration of CASCLIK into [ROS](http://www.ros.org/). The `casclik_basics` package contains a robot interface for sending joint position commands to the robot. But check out `casclik_tests` first. Link: [casclik\_examples](https://github.com/mahaarbo/casclik_examples).
