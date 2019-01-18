@@ -448,11 +448,16 @@ class ModelPredictiveController(BaseController):
                 lb_cnstr_expr2 = [-cs.inf]*expr_size[0]
                 ub_cnstr_expr2 = [0.0]*expr_size[0]
             elif isinstance(cnstr, VelocityEqualityConstraint):
-                lb_cnstr_expr = cnstr.target
-                ub_cnstr_expr = cnstr.target
+                cnstr_expr -= cnstr.target
+                lb_cnstr_expr = [0.0]*expr_size[0]
+                ub_cnstr_expr = [0.0]*expr_size[0]
             elif isinstance(cnstr, VelocitySetConstraint):
-                lb_cnstr_expr = cnstr.set_min
-                ub_cnstr_expr = cnstr.set_max
+                cnstr_expr2 = cnstr_expr - cnstr.set_max
+                cnstr_expr -= cnstr.set_min
+                lb_cnstr_expr = [0.0]*expr_size[0]
+                ub_cnstr_expr = [cs.inf]*expr_size[0]
+                lb_cnstr_expr2 = [-cs.inf]*expr_size[0]
+                ub_cnstr_expr2 = [0.0]*expr_size[0]
             # Soft constraints have slack
             if n_slack > 0:
                 if cnstr.constraint_type == "soft":
@@ -682,6 +687,7 @@ class ModelPredictiveController(BaseController):
 
     def solve(self, time_var, robot_var,
               virtual_var=None,
+              input_var=None,
               opt_var0=None,
               warmstart_robot_vel_var=None,
               warmstart_virtual_vel_var=None,
