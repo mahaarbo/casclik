@@ -9,6 +9,10 @@ This is a library for rapid prototyping of constraint-based, task-priority close
 
 [2]: Aertbeliën and De Schutter, [eTaSL/eTC: A constraint-based task specification language and robot controller using expression graphs](https://ieeexplore.ieee.org/document/6942760), 2014
 
+
+## Article
+A more in-depth article on CASCLIK will become available on arXiv shortly.
+
 ## Requirements
 This software requires CasADi and by default it uses the "shell compiler" method of compiling the solvers and functions. Make sure that CasADi works with all the example code, and is capable of compiling code and functions.
 
