@@ -11,7 +11,8 @@ This is a library for rapid prototyping of constraint-based, task-priority close
 
 
 ## Article
-A more in-depth article on CASCLIK will become available on arXiv shortly.
+[CASCLIK: CasADi-Based Closed-Loop Inverse Kinematics](https://arxiv.org/abs/1901.06713)
+
 
 ## Requirements
 This software requires CasADi and by default it uses the "shell compiler" method of compiling the solvers and functions. Make sure that CasADi works with all the example code, and is capable of compiling code and functions.
