@@ -13,7 +13,7 @@ def joints(simres, axs=None, max_speed=None, label_suffix="", lstyle="-"):
     nq = simres["q_sim"].shape[1]
     if axs is None:
         fig, axs = plt.subplots(2, 1)
-    for i in xrange(nq):
+    for i in range(nq):
         axs[0].plot(simres["t_sim"], simres["q_sim"][:, i],
                     label="q"+str(i)+label_suffix,ls=lstyle)
         axs[1].plot(simres["t_sim"], simres["dq_sim"][:, i],
@@ -37,7 +37,7 @@ def pos_point(simres, ax=None, p_des=None, label_suffix="", lstyle="-"):
     cmap = plt.get_cmap("tab10")
     if ax is None:
         fig, ax = plt.subplots(1, 1)
-    for i in xrange(ns):
+    for i in range(ns):
         ax.plot(simres["t_sim"], simres["p_sim"][:, i],
                 color=cmap(i), label=chr(ord("x")+i)+label_suffix,
                 ls=lstyle)
