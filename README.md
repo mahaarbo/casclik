@@ -1,3 +1,6 @@
+## Archived/Obsolete:
+This repository has not been under active development for many years and was a part of my work at the department of engineering cybernetics at NTNU in 2019. The repository has therefore been archived. 
+
 # CASCLIK
 [CasADi](https://web.casadi.org/)-based closed-loop inverse kinematics.
 
